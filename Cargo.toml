@@ -1,0 +1,20 @@
+[package]
+name = "attribute-derive"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+
+[dependencies]
+syn = "1"
+proc-macro2 = "1"
+
+[dependencies.macro]
+path = "macro"
+
+[dev-dependencies.syn]
+version = "1"
+features = ["full"]
+
+[workspace]
+members = ["macro"]
