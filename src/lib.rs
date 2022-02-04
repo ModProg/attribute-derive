@@ -3,9 +3,14 @@
 //! key=value. One important thing to keep in mind, is the limitation on values being valid
 //! expresions so we can rely on syn for the , splitting :D
 
-use proc_macro2::Literal;
+use std::fmt::Display;
+
+use proc_macro2::{Literal, Span};
 pub use r#macro::Attribute;
-use syn::{Expr, Lit, LitBool, LitByteStr, LitChar, LitFloat, LitInt, LitStr, Path, Result, Type};
+use syn::{
+    bracketed, parse::Parse, punctuated::Punctuated, Expr, Lit, LitBool,
+    LitByteStr, LitChar, LitFloat, LitInt, LitStr, Path, Result, Token, Type, __private::ToTokens,
+};
 
 pub mod __private {
     pub use proc_macro2;
@@ -19,16 +24,33 @@ where
     fn from_attributes(attrs: impl IntoIterator<Item = syn::Attribute>) -> Result<Self>;
 }
 
-pub trait ConvertParsed<T>
+pub trait ConvertParsed
 where
     Self: Sized,
+    Self::Type: Error,
 {
-    fn convert(s: T) -> Result<Self>;
+    type Type;
+    fn convert(value: Self::Type) -> Result<Self>;
+}
+
+/// Helper trait to generate sensible errors
+pub trait Error {
+    fn error(&self, message: impl Display) -> syn::Error;
+}
+
+impl<T> Error for T
+where
+    T: ToTokens,
+{
+    fn error(&self, message: impl Display) -> syn::Error {
+        syn::Error::new_spanned(self, message)
+    }
 }
 
 macro_rules! convert_parsed {
     ($type:path) => {
-        impl ConvertParsed<$type> for $type {
+        impl ConvertParsed for $type {
+            type Type = $type;
             fn convert(s: Self) -> Result<Self> {
                 Ok(s)
             }
@@ -36,7 +58,8 @@ macro_rules! convert_parsed {
     };
     [$($type:path),*] => {
         $(
-            impl ConvertParsed<$type> for $type {
+        impl ConvertParsed for $type {
+            type Type = $type;
                 fn convert(s: Self) -> Result<Self> {
                     Ok(s)
                 }
@@ -52,7 +75,8 @@ macro_rules! convert_parsed {
     };
     ($from:path => $($to:path),+ : $with:path ) => {
         $(
-            impl ConvertParsed<$from> for $to {
+            impl ConvertParsed for $to {
+                type Type = $from;
                 fn convert(value: $from) -> Result<$to> {
                     Ok($with(&value))
                 }
@@ -61,7 +85,8 @@ macro_rules! convert_parsed {
     };
     ($from:path => $($to:path),+ :? $with:path ) => {
         $(
-            impl ConvertParsed<$from> for $to {
+            impl ConvertParsed for $to {
+                type Type = $from;
                 fn convert(value: $from) -> Result<$to> {
                     $with(&value)
                 }
@@ -70,15 +95,53 @@ macro_rules! convert_parsed {
     };
 }
 
-impl<Output, Parsed> ConvertParsed<Parsed> for Option<Output>
+impl<Output, Parsed> ConvertParsed for Option<Output>
 where
-    Output: ConvertParsed<Parsed>,
+    Output: ConvertParsed<Type = Parsed>,
+    Parsed: Error,
 {
+    type Type = Parsed;
     fn convert(s: Parsed) -> Result<Self> {
         Ok(Some(ConvertParsed::convert(s)?))
     }
 }
 
+impl<Output, Parsed> ConvertParsed for Vec<Output>
+where
+    Output: ConvertParsed<Type = Parsed>,
+{
+    type Type = Array<Parsed>;
+    fn convert(array: Array<Parsed>) -> Result<Self> {
+        array.data.into_iter().map(ConvertParsed::convert).collect()
+    }
+}
+
+/// Helper struct to parse array literals
+pub struct Array<T> {
+    data: Vec<T>,
+    span: Span,
+}
+
+impl<T> Parse for Array<T>
+where
+    T: Parse,
+{
+    fn parse(input: syn::parse::ParseStream) -> Result<Self> {
+        let content;
+        let b = bracketed!(content in input);
+        let i = Punctuated::<T, Token!(,)>::parse_terminated(&content)?;
+        Ok(Self {
+            data: i.into_iter().collect(),
+            span: b.span,
+        })
+    }
+}
+
+impl<T> Error for Array<T> {
+    fn error(&self, message: impl Display) -> syn::Error {
+        syn::Error::new(self.span, message)
+    }
+}
 
 convert_parsed!(Type);
 convert_parsed!(Path);
@@ -87,7 +150,7 @@ convert_parsed![LitStr, LitByteStr, LitChar, LitInt, LitFloat, LitBool, Literal]
 convert_parsed!(Expr);
 
 convert_parsed!(LitStr => String: LitStr::value);
-convert_parsed!(LitByteStr => Vec<u8>: LitByteStr::value);
+// TODO convert_parsed!(LitByteStr => Vec<u8>: LitByteStr::value);
 convert_parsed!(LitChar => char: LitChar::value);
 convert_parsed!(LitInt => u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, usize, isize:? LitInt::base10_parse);
 convert_parsed!(LitFloat => f32, f64:? LitFloat::base10_parse);
@@ -327,4 +390,3 @@ convert_parsed!(LitBool => bool: LitBool::value);
 // impl Parse for While
 // impl Parse for Yield
 // impl Parse for Nothing
-

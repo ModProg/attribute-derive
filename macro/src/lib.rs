@@ -50,7 +50,8 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let mut options: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
+    let mut options_ty: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
+    let mut options_creation: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
     let mut parsing: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
     let mut option_assignments: Punctuated<TokenStream, Token!(;)> = Punctuated::new();
     let mut assignments: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
@@ -62,10 +63,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             ..
         }) => {
             for Field {
-                attrs,
-                ident,
-                ty,
-                ..
+                attrs, ident, ty, ..
             } in named.into_iter()
             {
                 let default: bool =
@@ -99,7 +97,9 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 let ident = ident.expect("named struct fields have idents");
                 let ident_str = ident.to_string();
 
-                options.push(quote!(#ident: Option<#ty>));
+                options_ty
+                    .push(quote!(#ident: Option<<#ty as ::attribute_derive::ConvertParsed>::Type>));
+                options_creation.push(quote!(#ident: None));
 
                 let error1 = format!("`{ident}` is specified multiple times");
                 let error2 = format!("`{ident}` was already specified");
@@ -107,10 +107,9 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                     match (&self.#ident, __other.#ident) {
                         (#none, __value @ #some(_)) => self.#ident = __value,
                         (#some(__first), #some(__second)) => {
-                            let mut __error =
-                                #syn::Error::new_spanned(__first, #error1);
-                            __error.combine(#syn::Error::new_spanned(
-                                __second,
+                            let mut __error = <<#ty as ::attribute_derive::ConvertParsed>::Type as ::attribute_derive::Error>::error(__first, #error1);
+                            __error.combine(<<#ty as ::attribute_derive::ConvertParsed>::Type as ::attribute_derive::Error>::error(
+                                &__second,
                                 #error2,
                             ));
                             return #err(__error);
@@ -122,7 +121,9 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 parsing.push(quote! {
                     #ident_str => {
                         __options.#ident = #some(
-                            ::attribute_derive::ConvertParsed::convert(__input.parse()?)?
+                            // ::attribute_derive::ConvertParsed::convert(__input.parse()?)?
+                            // TODO FQN
+                            __input.parse()?
                         );
                     }
                 });
@@ -130,13 +131,13 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 let error = format!("Mandatory `{ident}` was not specified via the attributes.");
                 assignments.push(if default {
                     quote! {
-                        #ident: __options.#ident.unwrap_or_default()
+                        #ident: __options.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t)).unwrap_or_else(|| #ok(<#ty as core::default::Default>::default()))?
                     }
                 } else {
                     quote! {
-                        #ident: __options.#ident.ok_or_else(||
+                        #ident: __options.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t)).ok_or_else(||
                             #syn::Error::new(#pm2::Span::call_site(), #error)
-                        )?
+                        )??
                     }
                 });
 
@@ -154,15 +155,14 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             last
         )
     } else {
-        format!("Only `{}` is allowd field", possible_variables[0])
+        format!("Expected supported field {}", possible_variables[0])
     };
 
     quote! {
         impl #impl_generics ::attribute_derive::Attribute for #ident #ty_generics #where_clause {
             fn from_attributes(__attrs: impl ::core::iter::IntoIterator<Item = #syn::Attribute>) -> #syn::Result<Self>{
-                #[derive(::core::default::Default)]
                 struct __Options{
-                    #options
+                    #options_ty
                 }
                 impl __Options {
                     fn extend_with(&mut self, __other:Self) -> #syn::Result<()>{
@@ -172,7 +172,9 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 }
                 impl #syn::parse::Parse for __Options {
                     fn parse(__input: #syn::parse::ParseStream<'_>) -> #syn::Result<Self> {
-                        let mut __options = Self::default();
+                        let mut __options = __Options{
+                            #options_creation
+                        };
                         loop {
                             if __input.is_empty() {
                                 break;
@@ -213,7 +215,9 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                         Ok(__options)
                     }
                 }
-                let mut __options = __Options::default();
+                let mut __options = __Options{
+                    #options_creation
+                };
                 for __attribute in __attrs {
                     if __attribute.path.is_ident(#attribute_ident) {
                         __options.extend_with(__attribute.parse_args()?)?;
