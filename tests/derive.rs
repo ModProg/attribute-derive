@@ -147,3 +147,15 @@ fn error_specified() {
         "error message"
     );
 }
+
+#[test]
+fn default() {
+    #[derive(Attribute, Debug)]
+    #[attribute(ident = "test")]
+    #[attribute(invalid_field = "error message")]
+    #[allow(dead_code)]
+    struct Test {
+        #[attribute(default)]
+        hi: f32,
+    }
+}

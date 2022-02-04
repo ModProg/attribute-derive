@@ -1,9 +1,9 @@
-use proc_macro2::{Ident, TokenStream};
-use proc_macro_error::{abort, abort_call_site, proc_macro_error, ResultExt};
+use proc_macro2::TokenStream;
+use proc_macro_error::{abort_call_site, proc_macro_error, ResultExt};
 use quote::quote;
 use syn::{
     parse_macro_input, parse_quote, punctuated::Punctuated, DataStruct, DeriveInput, Field, Fields,
-    FieldsNamed, Lit, Meta, MetaList, MetaNameValue, NestedMeta, Path, Token,
+    FieldsNamed, Lit, Meta, MetaNameValue, NestedMeta, Path, Token,
 };
 
 // TODO generally should use fully qualified names for trait function calls
@@ -88,16 +88,11 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 {
                     const VALID_FORMAT: &str = r#"Expected `#[attribute(default, missing="error message", expected="error message"])`"#;
                     let meta: Meta = attribute.parse_meta().unwrap_or_abort();
-                    match meta {
-                        Meta::List(meta) => {
-                            for meta in meta.nested {
-                                if let NestedMeta::Meta(Meta::NameValue(MetaNameValue {
-                                    path,
-                                    lit,
-                                    ..
-                                })) = meta
-                                {
-                                    match (
+                    if let Meta::List(meta) = meta {
+                        for meta in meta.nested {
+                            if let NestedMeta::Meta(meta) = meta {
+                                match meta {
+                                    Meta::NameValue(MetaNameValue { path, lit, .. }) => match (
                                         path.get_ident()
                                             .unwrap_or_else(|| abort_call_site!(VALID_FORMAT))
                                             .to_string()
@@ -107,20 +102,21 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                                         ("missing", Lit::Str(lit)) => missing = Some(lit.value()),
                                         ("expected", Lit::Str(lit)) => expected = Some(lit.value()),
                                         _ => abort_call_site!(VALID_FORMAT),
+                                    },
+
+                                    Meta::Path(path) => {
+                                        if path.is_ident("default") {
+                                            default = true;
+                                        } else {
+                                            abort_call_site!(VALID_FORMAT);
+                                        }
                                     }
-                                } else {
-                                    abort_call_site!(VALID_FORMAT);
+                                    _ => abort_call_site!(VALID_FORMAT),
                                 }
-                            }
-                        }
-                        Meta::Path(path) => {
-                            if path.is_ident("default") {
-                                default = true;
                             } else {
                                 abort_call_site!(VALID_FORMAT);
                             }
                         }
-                        _ => (),
                     }
                 }
 
