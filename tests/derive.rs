@@ -5,7 +5,7 @@ use syn::parse_quote;
 fn test() {
     use syn::{Expr, LitStr, Type};
     #[derive(Attribute)]
-    #[attribute(test)]
+    #[attribute(ident = "test")]
     struct Test {
         // a: u8,
         b: LitStr,
@@ -33,7 +33,7 @@ fn test() {
 #[test]
 fn error() {
     #[derive(Attribute, Debug)]
-    #[attribute(test)]
+    #[attribute(ident = "test")]
     struct Test {
         #[allow(dead_code)]
         s: String,
@@ -71,12 +71,22 @@ fn error() {
 #[test]
 fn error2() {
     #[derive(Attribute, Debug)]
-    #[attribute(test)]
+    #[attribute(ident = "test")]
     #[allow(dead_code)]
     struct Test {
+        #[attribute(expected = "no")]
         a: f32,
         b: u8,
+        #[attribute(missing = "yes")]
+        c: String,
     }
+
+    assert_eq!(
+        Test::from_attributes([parse_quote!(#[test(d="")])])
+            .unwrap_err()
+            .to_string(),
+        "Supported fields are `a`, `b` and `c`"
+    );
 
     assert_eq!(
         Test::from_attributes([parse_quote!(#[test()])])
@@ -86,10 +96,17 @@ fn error2() {
     );
 
     assert_eq!(
+        Test::from_attributes([parse_quote!(#[test(a=1., b=1)])])
+            .unwrap_err()
+            .to_string(),
+        "yes"
+    );
+
+    assert_eq!(
         Test::from_attributes([parse_quote!(#[test(a="")])])
             .unwrap_err()
             .to_string(),
-        "expected floating point literal"
+        "no"
     );
 
     assert_eq!(
@@ -112,5 +129,21 @@ fn error2() {
             .unwrap_err()
             .to_string(),
         "number too large to fit in target type"
+    );
+}
+
+#[test]
+fn error_specified() {
+    #[derive(Attribute, Debug)]
+    #[attribute(ident = "test")]
+    #[attribute(invalid_field = "error message")]
+    #[allow(dead_code)]
+    struct Test {}
+
+    assert_eq!(
+        Test::from_attributes([parse_quote!(#[test(c="")])])
+            .unwrap_err()
+            .to_string(),
+        "error message"
     );
 }

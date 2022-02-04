@@ -3,7 +3,7 @@ use proc_macro_error::{abort, abort_call_site, proc_macro_error, ResultExt};
 use quote::quote;
 use syn::{
     parse_macro_input, parse_quote, punctuated::Punctuated, DataStruct, DeriveInput, Field, Fields,
-    FieldsNamed, Path, Token,
+    FieldsNamed, Lit, Meta, MetaList, MetaNameValue, NestedMeta, Path, Token,
 };
 
 // TODO generally should use fully qualified names for trait function calls
@@ -26,27 +26,40 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         ..
     } = parse_macro_input!(input as DeriveInput);
 
-    let attribute_ident: String = attrs
+    let mut attribute_ident = None;
+    let mut invalid_field = None;
+
+    for attribute in attrs
         .into_iter()
-        .find_map(|attribute| {
-            if attribute.path.is_ident("attribute") {
-                let path: Path = attribute.parse_args().unwrap_or_abort();
-                Some(
-                    path.get_ident()
-                        .unwrap_or_else(|| {
-                            abort_call_site!("Only single idents are currently supported")
-                        })
-                        .to_string(),
-                )
-            } else {
-                None
+        .filter(|attribute| attribute.path.is_ident("attribute"))
+    {
+        const VALID_FORMAT: &str = r#"Expected `#[attribute(ident="name_of_your_attribute", invalid_field="error message")]`"#;
+        let meta: Meta = attribute.parse_meta().unwrap_or_abort();
+        if let Meta::List(meta) = meta {
+            for meta in meta.nested {
+                if let NestedMeta::Meta(Meta::NameValue(MetaNameValue { path, lit, .. })) = meta {
+                    match (
+                        path.get_ident()
+                            .unwrap_or_else(|| abort_call_site!(VALID_FORMAT))
+                            .to_string()
+                            .as_str(),
+                        lit,
+                    ) {
+                        ("ident", Lit::Str(lit)) => attribute_ident = Some(lit.value()),
+                        ("invalid_field", Lit::Str(lit)) => invalid_field = Some(lit.value()),
+                        _ => abort_call_site!(VALID_FORMAT),
+                    }
+                } else {
+                    abort_call_site!(VALID_FORMAT);
+                }
             }
-        })
-        .unwrap_or_else(|| {
-            abort_call_site!(
-                "You need to specify the attribute path via `#[attribute(name_of_your_attribute)]`"
-            );
-        });
+        }
+    }
+    let attribute_ident: String = attribute_ident.unwrap_or_else(|| {
+        abort_call_site!(
+            r#"You need to specify the attribute path via `#[attribute(ident="name_of_your_attribute")]`"#
+        );
+    });
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
@@ -66,34 +79,51 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 attrs, ident, ty, ..
             } in named.into_iter()
             {
-                let default: bool =
-                    attrs
-                        .into_iter()
-                        .find_map(|attribute| {
-                            if attribute.path.is_ident("attribute") {
-                                Some(
-                                    attribute
-                                        .parse_args()
-                                        .ok()
-                                        .and_then(|ident: Ident| {
-                                            if ident == "default" {
-                                                Some(true)
-                                            } else {
-                                                None
-                                            }
-                                        })
-                                        .unwrap_or_else(|| {
-                                            abort!(
-                                            attribute,
-                                            "Only `#[attribute(default)]` is currently supported"
-                                        )
-                                        }),
-                                )
-                            } else {
-                                None
+                let mut default = false;
+                let mut missing = None;
+                let mut expected = None;
+                for attribute in attrs
+                    .into_iter()
+                    .filter(|attribute| attribute.path.is_ident("attribute"))
+                {
+                    const VALID_FORMAT: &str = r#"Expected `#[attribute(default, missing="error message", expected="error message"])`"#;
+                    let meta: Meta = attribute.parse_meta().unwrap_or_abort();
+                    match meta {
+                        Meta::List(meta) => {
+                            for meta in meta.nested {
+                                if let NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                                    path,
+                                    lit,
+                                    ..
+                                })) = meta
+                                {
+                                    match (
+                                        path.get_ident()
+                                            .unwrap_or_else(|| abort_call_site!(VALID_FORMAT))
+                                            .to_string()
+                                            .as_str(),
+                                        lit,
+                                    ) {
+                                        ("missing", Lit::Str(lit)) => missing = Some(lit.value()),
+                                        ("expected", Lit::Str(lit)) => expected = Some(lit.value()),
+                                        _ => abort_call_site!(VALID_FORMAT),
+                                    }
+                                } else {
+                                    abort_call_site!(VALID_FORMAT);
+                                }
                             }
-                        })
-                        .unwrap_or_default();
+                        }
+                        Meta::Path(path) => {
+                            if path.is_ident("default") {
+                                default = true;
+                            } else {
+                                abort_call_site!(VALID_FORMAT);
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+
                 let ident = ident.expect("named struct fields have idents");
                 let ident_str = ident.to_string();
 
@@ -108,7 +138,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                         (#none, __value @ #some(_)) => self.#ident = __value,
                         (#some(__first), #some(__second)) => {
                             let mut __error = <<#ty as ::attribute_derive::ConvertParsed>::Type as ::attribute_derive::Error>::error(__first, #error1);
-                            __error.combine(<<#ty as ::attribute_derive::ConvertParsed>::Type as ::attribute_derive::Error>::error(
+                            #syn::Error::combine(&mut __error, <<#ty as ::attribute_derive::ConvertParsed>::Type as ::attribute_derive::Error>::error(
                                 &__second,
                                 #error2,
                             ));
@@ -118,17 +148,23 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                     }
                 });
 
+                let error = if let Some(expected) = expected {
+                    quote! {.map_err(|__error| #syn::Error::new(__error.span(), #expected)) }
+                } else {
+                    quote!()
+                };
+
                 parsing.push(quote! {
                     #ident_str => {
                         __options.#ident = #some(
-                            // ::attribute_derive::ConvertParsed::convert(__input.parse()?)?
-                            // TODO FQN
-                            __input.parse()?
+                            #syn::parse::Parse::parse(__input)#error?
                         );
                     }
                 });
 
-                let error = format!("Mandatory `{ident}` was not specified via the attributes.");
+                let error = missing.unwrap_or_else(|| {
+                    format!("Mandatory `{ident}` was not specified via the attributes.")
+                });
                 assignments.push(if default {
                     quote! {
                         #ident: __options.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t)).unwrap_or_else(|| #ok(<#ty as core::default::Default>::default()))?
@@ -149,18 +185,21 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         _ => abort_call_site!("Only works on structs with named fields"),
     };
 
-    let error_invalid_name = if possible_variables.len() > 1 {
-        let last = possible_variables.pop().unwrap();
-        format!(
-            "Supported fields are {} and {}",
-            possible_variables.join(", "),
-            last
-        )
-    } else {
-        format!("Expected supported field {}", possible_variables[0])
-    };
+    let error_invalid_name = invalid_field.unwrap_or_else(|| {
+        if possible_variables.len() > 1 {
+            let last = possible_variables.pop().unwrap();
+            format!(
+                "Supported fields are {} and {}",
+                possible_variables.join(", "),
+                last
+            )
+        } else {
+            format!("Expected supported field {}", possible_variables[0])
+        }
+    });
 
     quote! {
+        #[allow(unreachable_code)]
         impl #impl_generics ::attribute_derive::Attribute for #ident #ty_generics #where_clause {
             fn from_attributes(__attrs: impl ::core::iter::IntoIterator<Item = #syn::Attribute>) -> #syn::Result<Self>{
                 struct __Options{
