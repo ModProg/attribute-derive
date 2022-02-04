@@ -10,13 +10,11 @@ fn test() {
         // a: u8,
         b: LitStr,
         c: String,
-        #[attribute(default)]
         oc: Option<String>,
-        #[attribute(default)]
         od: Option<Type>,
         d: Type,
         e: Expr,
-        f: Vec<Type>
+        f: Vec<Type>,
     }
 
     let parsed = Test::from_attributes([
@@ -74,10 +72,10 @@ fn error() {
 fn error2() {
     #[derive(Attribute, Debug)]
     #[attribute(test)]
+    #[allow(dead_code)]
     struct Test {
-        #[allow(dead_code)]
         a: f32,
-        b: u8
+        b: u8,
     }
 
     assert_eq!(

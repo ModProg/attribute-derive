@@ -135,9 +135,11 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                     }
                 } else {
                     quote! {
-                        #ident: __options.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t)).ok_or_else(||
-                            #syn::Error::new(#pm2::Span::call_site(), #error)
-                        )??
+                        #ident: match __options.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t)) {
+                                Some(__option) => __option?,
+                                None if <#ty as ::attribute_derive::ConvertParsed>::default_by_default() => <#ty as ::attribute_derive::ConvertParsed>::default(),
+                                _ => #err(#syn::Error::new(#pm2::Span::call_site(), #error))?,
+                            }
                     }
                 });
 

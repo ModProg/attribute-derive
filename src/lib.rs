@@ -8,8 +8,8 @@ use std::fmt::Display;
 use proc_macro2::{Literal, Span};
 pub use r#macro::Attribute;
 use syn::{
-    bracketed, parse::Parse, punctuated::Punctuated, Expr, Lit, LitBool,
-    LitByteStr, LitChar, LitFloat, LitInt, LitStr, Path, Result, Token, Type, __private::ToTokens,
+    bracketed, parse::Parse, punctuated::Punctuated, Expr, Lit, LitBool, LitByteStr, LitChar,
+    LitFloat, LitInt, LitStr, Path, Result, Token, Type, __private::ToTokens,
 };
 
 pub mod __private {
@@ -31,6 +31,12 @@ where
 {
     type Type;
     fn convert(value: Self::Type) -> Result<Self>;
+    fn default_by_default() -> bool {
+        false
+    }
+    fn default() -> Self {
+        unreachable!("default_by_default should only return true if this is overridden")
+    }
 }
 
 /// Helper trait to generate sensible errors
@@ -103,6 +109,14 @@ where
     type Type = Parsed;
     fn convert(s: Parsed) -> Result<Self> {
         Ok(Some(ConvertParsed::convert(s)?))
+    }
+
+    fn default_by_default() -> bool {
+        true
+    }
+
+    fn default() -> Self {
+        Default::default()
     }
 }
 
