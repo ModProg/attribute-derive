@@ -27,6 +27,14 @@
 //! using [`Array`] with the syntax `[a, b, c]` and [`Options`](Option) that will be [`None`] if
 //! not specified and [`Some`] when the value is specified via the attribute. It is not
 //! specified via `Some(value)` but as just `value`.
+//!
+//! ## Limitations
+//!
+//! There are some limitations in syntax parsing that will be lifted future releases.
+//!
+//! - literals in top level (meaning something like `#[attr(42, 3.14, "hi")]`
+//! - function like arguments (something like `#[attr(view(a = "test"))]`
+//! - other syntaxes, maybe something like `key: value`
 use std::fmt::Display;
 
 use proc_macro2::{Literal, Span};
