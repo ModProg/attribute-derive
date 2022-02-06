@@ -1,8 +1,8 @@
 # attribute-derive
 
-![docs.rs](https://img.shields.io/docsrs/attribute-derive)
-![crates.io](https://img.shields.io/crates/v/attribute-derive)
-![MIT](https://img.shields.io/crates/l/attribute-derive)
+[![docs.rs](https://img.shields.io/docsrs/attribute-derive)](https://docs.rs/attribute-derive/latest/attribute_derive/)
+[![lib.rs](https://img.shields.io/crates/v/attribute-derive)](https://lib.rs/crates/attribute-derive)
+[![MIT](https://img.shields.io/crates/l/attribute-derive)](LICENSE)
 
 Basicly clap for attribute macros:
 ```rust
