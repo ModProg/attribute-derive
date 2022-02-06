@@ -1,7 +1,15 @@
 [package]
-name = "macro"
+categories = ["rust-patterns", "development-tools::procedural-macro-helpers", "parsing"]
+description = "Clap for proc macro attributes"
+documentation = "https://docs.rs/attribute-derive"
+include = ["src/**/*", "Cargo.toml", "LICENSE", "README.md"]
+keywords = ["derive", "macro"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/ModProg/attribute-derive"
 version = "0.1.0"
 edition = "2021"
+name = "attribute-derive-macro"
 
 [lib]
 proc-macro = true
