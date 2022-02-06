@@ -42,7 +42,7 @@ use std::fmt::Display;
 
 use proc_macro2::{Literal, Span};
 #[doc(hidden)]
-pub use r#macro::Attribute;
+pub use attribute_derive_macro::Attribute;
 use syn::{
     bracketed, parse::Parse, punctuated::Punctuated, Expr, Lit, LitBool, LitByteStr, LitChar,
     LitFloat, LitInt, LitStr, Path, Result, Token, Type, __private::ToTokens, parse_quote,

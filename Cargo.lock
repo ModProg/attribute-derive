@@ -6,13 +6,13 @@ version = 3
 name = "attribute-derive"
 version = "0.1.0"
 dependencies = [
- "macro",
+ "attribute-derive-macro",
  "proc-macro2",
  "syn",
 ]
 
 [[package]]
-name = "macro"
+name = "attribute-derive-macro"
 version = "0.1.0"
 dependencies = [
  "proc-macro-error",
