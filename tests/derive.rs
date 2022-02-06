@@ -15,10 +15,12 @@ fn test() {
         d: Type,
         e: Expr,
         f: Vec<Type>,
+        g: bool,
+        h: bool,
     }
 
     let parsed = Test::from_attributes([
-        parse_quote!(#[test(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug])]),
+        parse_quote!(#[test(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g)]),
     ])
     .unwrap();
     assert_eq!(parsed.b.value(), "hi");
@@ -28,6 +30,8 @@ fn test() {
     assert!(matches!(parsed.d, Type::Tuple(_)));
     assert!(matches!(parsed.e, Expr::If(_)));
     assert!(parsed.f.len() == 2);
+    assert!(parsed.g);
+    assert!(!parsed.h);
 }
 
 #[test]
@@ -57,7 +61,7 @@ fn error() {
         Test::from_attributes([parse_quote!(#[test(invalid_attribute)])])
             .unwrap_err()
             .to_string(),
-        "unexpected end of input, Expected assignment `=`"
+        "Expected supported field `s`"
     );
 
     assert_eq!(

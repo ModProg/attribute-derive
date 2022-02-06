@@ -1,5 +1,5 @@
 //! Basic gist is a struct like this:
-//! ```
+//! ```ignore
 //! #[derive(Attribute)]
 //! #[attribute(ident = "collection")]
 //! #[attribute(invalid_field = "Error when an unsupported value is set (e.g. meaning=42")]
@@ -17,7 +17,7 @@
 //! ```
 //!
 //! Will be able to parse an attribute like this:
-//! ```
+//! ```ignore
 //! #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()])]
 //! ```
 //!
@@ -34,11 +34,10 @@ use proc_macro2::{Literal, Span};
 pub use r#macro::Attribute;
 use syn::{
     bracketed, parse::Parse, punctuated::Punctuated, Expr, Lit, LitBool, LitByteStr, LitChar,
-    LitFloat, LitInt, LitStr, Path, Result, Token, Type, __private::ToTokens,
+    LitFloat, LitInt, LitStr, Path, Result, Token, Type, __private::ToTokens, parse_quote,
 };
 
 #[deny(missing_docs)]
-
 #[doc(hidden)]
 pub mod __private {
     pub use proc_macro2;
@@ -48,7 +47,7 @@ pub mod __private {
 /// The trait you actually derive on your attribute struct.
 ///
 /// Basic gist is a struct like this:
-/// ```
+/// ```ignore
 /// #[derive(Attribute)]
 /// #[attribute(ident = "collection")]
 /// #[attribute(invalid_field = "Error when an unsupported value is set (e.g. meaning=42")]
@@ -62,12 +61,15 @@ pub mod __private {
 ///     #[attribute(default)]
 ///     #[attribute(expected = "Error when an error occured while parsing")]
 ///     views: Vec<Type>,
+///     // Booleans can be used without assiging a value. as a flag.
+///     // If omitted they are set to false
+///     some_flag: bool
 /// }
 /// ```
 ///
 /// Will be able to parse an attribute like this:
-/// ```
-/// #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()])]
+/// ```ignore
+/// #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()], some_flag)]
 /// ```
 pub trait Attribute
 where
@@ -77,7 +79,7 @@ where
     /// [`Vec<Attribute>`](Vec).
     ///
     /// It can therefore parse fields set over multiple attributes like:
-    /// ```
+    /// ```ignore
     /// #[collection(authority = "Authority", name = "Name")]
     /// #[collection(views = [A, B])]
     /// ```
@@ -117,6 +119,11 @@ where
     /// [`Option`]
     fn default() -> Self {
         unreachable!("default_by_default should only return true if this is overridden")
+    }
+    /// Should values of this type be able to be defined as flag i.e. just `#[attr(default)]`
+    /// instead of `#[attr(default=true)]`
+    fn as_flag() -> Option<Self::Type> {
+        None
     }
 }
 
@@ -214,6 +221,26 @@ where
     }
 }
 
+impl ConvertParsed for bool {
+    type Type = LitBool;
+
+    fn convert(value: Self::Type) -> Result<Self> {
+        Ok(value.value)
+    }
+
+    fn default_by_default() -> bool {
+        true
+    }
+
+    fn default() -> Self {
+        false
+    }
+
+    fn as_flag() -> Option<Self::Type> {
+        Some(parse_quote!(true))
+    }
+}
+
 /// Helper struct to parse array literals:
 /// `[a, b, c]`
 pub struct Array<T> {
@@ -253,7 +280,6 @@ convert_parsed!(LitStr => String: LitStr::value);
 convert_parsed!(LitChar => char: LitChar::value);
 convert_parsed!(LitInt => u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, usize, isize:? LitInt::base10_parse);
 convert_parsed!(LitFloat => f32, f64:? LitFloat::base10_parse);
-convert_parsed!(LitBool => bool: LitBool::value);
 
 // TODO convert most of these
 // impl Parse for Group

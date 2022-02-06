@@ -153,7 +153,19 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 parsing.push(quote! {
                     #ident_str => {
                         __options.#ident = #some(
-                            #syn::parse::Parse::parse(__input)#error?
+                            if let #some(#some(__value)) = __is_flag.then(|| <#ty as ::attribute_derive::ConvertParsed>::as_flag()) {
+                                __value
+                            } else {
+                                __input.step(|__cursor| match __cursor.punct() {
+                                    #some((__punct, __rest))
+                                        if __punct.as_char() == '=' && __punct.spacing() == #pm2::Spacing::Alone =>
+                                    {
+                                        #ok(((), __rest))
+                                    }
+                                    _ => #err(__cursor.error("Expected assignment `=`")),
+                                })?;
+                                #syn::parse::Parse::parse(__input)#error?
+                            }
                         );
                     }
                 });
@@ -219,15 +231,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 
                             let __variable = #syn::Ident::parse(__input)?;
 
-                            // Parse `=`
-                            __input.step(|__cursor| match __cursor.punct() {
-                                #some((__punct, __rest))
-                                    if __punct.as_char() == '=' && __punct.spacing() == #pm2::Spacing::Alone =>
-                                {
-                                    #ok(((), __rest))
-                                }
-                                _ => #err(__cursor.error("Expected assignment `=`")),
-                            })?;
+                            let __is_flag = !__input.peek(#syn::Token!(=));
 
                             match __variable.to_string().as_str() {
                                 #parsing
