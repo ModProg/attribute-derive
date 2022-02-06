@@ -1,39 +1,120 @@
-//! The Idea is to parse smth like #[path(value, key=value, key(value))] for arbitrary types really.
-//! Parsing works the same way as a function call... meaning any syntax valid ther + the additional
-//! key=value. One important thing to keep in mind, is the limitation on values being valid
-//! expresions so we can rely on syn for the , splitting :D
-
+//! Basic gist is a struct like this:
+//! ```
+//! #[derive(Attribute)]
+//! #[attribute(ident = "collection")]
+//! #[attribute(invalid_field = "Error when an unsupported value is set (e.g. meaning=42")]
+//! struct CollectionAttribute {
+//!     // Options are optional by default (will be set to None if not specified)
+//!     authority: Option<String>,
+//!     #[attribute(missing = "Error when the value is not set")]
+//!     name: String,
+//!     // Any type implementing default can be flagged as default
+//!     // This will be set to Vec::default() when not specified
+//!     #[attribute(default)]
+//!     #[attribute(expected = "Error when an error occured while parsing")]
+//!     views: Vec<Type>,
+//! }
+//! ```
+//!
+//! Will be able to parse an attribute like this:
+//! ```
+//! #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()])]
+//! ```
+//!
+//! Any type that [`ConvertParsed`] is implemented for is supported. These should be the general
+//! types that syn supports like [`LitStr`](struct@LitStr) or [`Type`] or that have a direct equivalent in those
+//! like [`String`], [`char`] or [`f32`]. A special treatment have [`Vecs`](Vec) which are parsed
+//! using [`Array`] with the syntax `[a, b, c]` and [`Options`](Option) that will be [`None`] if
+//! not specified and [`Some`] when the value is specified via the attribute. It is not
+//! specified via `Some(value)` but as just `value`.
 use std::fmt::Display;
 
 use proc_macro2::{Literal, Span};
+#[doc(hidden)]
 pub use r#macro::Attribute;
 use syn::{
     bracketed, parse::Parse, punctuated::Punctuated, Expr, Lit, LitBool, LitByteStr, LitChar,
     LitFloat, LitInt, LitStr, Path, Result, Token, Type, __private::ToTokens,
 };
 
+#[deny(missing_docs)]
+
+#[doc(hidden)]
 pub mod __private {
     pub use proc_macro2;
     pub use syn;
 }
 
+/// The trait you actually derive on your attribute struct.
+///
+/// Basic gist is a struct like this:
+/// ```
+/// #[derive(Attribute)]
+/// #[attribute(ident = "collection")]
+/// #[attribute(invalid_field = "Error when an unsupported value is set (e.g. meaning=42")]
+/// struct CollectionAttribute {
+///     // Options are optional by default (will be set to None if not specified)
+///     authority: Option<String>,
+///     #[attribute(missing = "Error when the value is not set")]
+///     name: String,
+///     // Any type implementing default can be flagged as default
+///     // This will be set to Vec::default() when not specified
+///     #[attribute(default)]
+///     #[attribute(expected = "Error when an error occured while parsing")]
+///     views: Vec<Type>,
+/// }
+/// ```
+///
+/// Will be able to parse an attribute like this:
+/// ```
+/// #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()])]
+/// ```
 pub trait Attribute
 where
     Self: Sized,
 {
+    /// Parses an [`IntoIterator`] of [`syn::Attributes`](syn::Attribute) e.g.
+    /// [`Vec<Attribute>`](Vec).
+    ///
+    /// It can therefore parse fields set over multiple attributes like:
+    /// ```
+    /// #[collection(authority = "Authority", name = "Name")]
+    /// #[collection(views = [A, B])]
+    /// ```
+    /// and also catch duplicate/conflicting settings over those.
+    ///
+    /// Fails with a [`syn::Error`] so you can conveniently return that as a compiler error in a proc
+    /// macro.
     fn from_attributes(attrs: impl IntoIterator<Item = syn::Attribute>) -> Result<Self>;
 }
 
+/// Helper trait to convert syn types implementing [`Parse`] like [`LitStr`](struct@LitStr) to rust
+/// types like [`String`]
+///
+/// You probably don't need to implement this trait, as most syn types like [`LitStr`](struct@LitStr)
+/// and [`Type`] or that have a direct equivalent in those like [`String`], [`char`] or [`f32`] are
+/// already implemented. A special treatment have [`Vecs`](Vec) which are parsed
+/// using the helper [`Array`] with the syntax `[a, b, c]` and [`Options`](Option) that will be
+/// [`None`] if not specified and [`Some`] when the value is specified via the attribute. It is not
+/// specified via `Some(value)` but as just `value`.
 pub trait ConvertParsed
 where
     Self: Sized,
     Self::Type: Error,
 {
+    /// The type this can be converted from
     type Type;
+    /// This takes [`Self::Type`] and converts it to [`Self`].
+    ///
+    /// This can return an error, e.g. when parsing an integer too large for a [`u8`] into an `u8`
     fn convert(value: Self::Type) -> Result<Self>;
+    /// Should values of this type return their default when they are not specified even when the
+    /// `default` flag is not specified (only returns `true` for [`Option`] currently)
     fn default_by_default() -> bool {
         false
     }
+    /// The default value, this is necessary to implement the implicit default behavior of
+    /// [`Option`]
     fn default() -> Self {
         unreachable!("default_by_default should only return true if this is overridden")
     }
@@ -41,6 +122,8 @@ where
 
 /// Helper trait to generate sensible errors
 pub trait Error {
+    /// This is used to be able to create errors more easily. Mostly used through the
+    /// implementation for [`T: ToTokens`](ToTokens).
     fn error(&self, message: impl Display) -> syn::Error;
 }
 
@@ -53,6 +136,7 @@ where
     }
 }
 
+/// Macro to easily implement [`ConvertParsed`] for syn types
 macro_rules! convert_parsed {
     ($type:path) => {
         impl ConvertParsed for $type {
@@ -130,7 +214,8 @@ where
     }
 }
 
-/// Helper struct to parse array literals
+/// Helper struct to parse array literals:
+/// `[a, b, c]`
 pub struct Array<T> {
     data: Vec<T>,
     span: Span,
