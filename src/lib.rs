@@ -1,4 +1,4 @@
-//! Basic gist is a struct like this:
+//! Basicly clap for attribute macros:
 //! ```ignore
 //! #[derive(Attribute)]
 //! #[attribute(ident = "collection")]
@@ -13,6 +13,9 @@
 //!     #[attribute(default)]
 //!     #[attribute(expected = "Error when an error occured while parsing")]
 //!     views: Vec<Type>,
+//!     // Booleans can be used without assiging a value. as a flag.
+//!     // If omitted they are set to false
+//!     some_flag
 //! }
 //! ```
 //!
