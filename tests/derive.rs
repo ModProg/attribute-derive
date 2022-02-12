@@ -1,4 +1,5 @@
 use attribute_derive::Attribute;
+use proc_macro2::TokenStream;
 use syn::parse_quote;
 
 #[test]
@@ -17,10 +18,11 @@ fn test() {
         f: Vec<Type>,
         g: bool,
         h: bool,
+        i: TokenStream,
     }
 
     let parsed = Test::from_attributes([
-        parse_quote!(#[test(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g)]),
+        parse_quote!(#[test(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)]),
     ])
     .unwrap();
     assert_eq!(parsed.b.value(), "hi");
@@ -32,6 +34,7 @@ fn test() {
     assert!(parsed.f.len() == 2);
     assert!(parsed.g);
     assert!(!parsed.h);
+    assert_eq!(parsed.i.to_string(), "smth :: hello + 24 / 3 'a' , b = c");
 }
 
 #[test]
@@ -156,10 +159,28 @@ fn error_specified() {
 fn default() {
     #[derive(Attribute, Debug)]
     #[attribute(ident = "test")]
-    #[attribute(invalid_field = "error message")]
-    #[allow(dead_code)]
     struct Test {
         #[attribute(default)]
         hi: f32,
     }
+    assert_eq!(Test::from_attributes([]).unwrap().hi, 0.);
+}
+
+#[test]
+fn aggregate() {
+    #[derive(Attribute, Debug)]
+    #[attribute(ident = "test")]
+    struct Test {
+        strings: Vec<String>,
+    }
+
+    assert_eq!(
+        Test::from_attributes([
+            parse_quote!(#[test(strings=["a"])]),
+            parse_quote!(#[test(strings=["b"])])
+        ])
+        .unwrap()
+        .strings,
+        vec!["a".to_owned(), "b".to_owned()]
+    )
 }

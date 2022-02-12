@@ -40,9 +40,9 @@
 //! - other syntaxes, maybe something like `key: value`
 use std::fmt::Display;
 
-use proc_macro2::{Literal, Span};
 #[doc(hidden)]
 pub use attribute_derive_macro::Attribute;
+use proc_macro2::{Literal, Span, TokenStream};
 use syn::{
     bracketed, parse::Parse, punctuated::Punctuated, Expr, Lit, LitBool, LitByteStr, LitChar,
     LitFloat, LitInt, LitStr, Path, Result, Token, Type, __private::ToTokens, parse_quote,
@@ -113,7 +113,7 @@ where
 pub trait ConvertParsed
 where
     Self: Sized,
-    Self::Type: Error,
+    Self::Type: Error + Clone,
 {
     /// The type this can be converted from
     type Type;
@@ -128,13 +128,51 @@ where
     }
     /// The default value, this is necessary to implement the implicit default behavior of
     /// [`Option`]
+    ///
+    /// This is necessary as the [`Default`] trait cannot be used in expanded code, but normally you
+    /// can easily implement it using it:
+    /// ```
+    /// # use attribute_derive::ConvertParsed;
+    /// # use syn::{Result, LitBool};
+    /// # #[derive(Default)]
+    /// # struct bool;
+    /// impl ConvertParsed for bool {
+    /// #   type Type = LitBool;
+    /// #   fn convert(value: Self::Type) -> Result<Self> {
+    /// #       unimplemented!()
+    /// #   }
+    ///     fn default() -> Self {
+    ///         Default::default()
+    ///     }
+    /// }
+    /// ```
     fn default() -> Self {
         unreachable!("default_by_default should only return true if this is overridden")
     }
-    /// Should values of this type be able to be defined as flag i.e. just `#[attr(default)]`
-    /// instead of `#[attr(default=true)]`
+    /// Returns the value when this type is specified as flag i.e. just `#[attr(default)]`
+    /// instead of `#[attr(default=true)]`. This relies on [`Self::default`].
     fn as_flag() -> Option<Self::Type> {
         None
+    }
+    /// Should values of this type be aggregated instead of conflict if specified multiple times
+    ///
+    /// Currently this is only implemented for [`Arrays`](Array)
+    #[allow(unused)]
+    fn aggregate(
+        this: Option<Self::Type>,
+        other: Option<Self::Type>,
+        error1: &str,
+        error2: &str,
+    ) -> Result<Option<Self::Type>> {
+        match (this, other) {
+            (None, value) => Ok(value),
+            (value, None) => Ok(value),
+            (Some(this), Some(other)) => {
+                let mut error = this.error(error1);
+                syn::Error::combine(&mut error, other.error(error2));
+                Err(error)
+            }
+        }
     }
 }
 
@@ -156,7 +194,8 @@ where
 
 /// Macro to easily implement [`ConvertParsed`] for syn types
 macro_rules! convert_parsed {
-    ($type:path) => {
+    ($(#[$meta:meta])* $type:path) => {
+        $(#[$meta])*
         impl ConvertParsed for $type {
             type Type = $type;
             fn convert(s: Self) -> Result<Self> {
@@ -206,7 +245,7 @@ macro_rules! convert_parsed {
 impl<Output, Parsed> ConvertParsed for Option<Output>
 where
     Output: ConvertParsed<Type = Parsed>,
-    Parsed: Error,
+    Parsed: Error + Clone,
 {
     type Type = Parsed;
     fn convert(s: Parsed) -> Result<Self> {
@@ -225,10 +264,28 @@ where
 impl<Output, Parsed> ConvertParsed for Vec<Output>
 where
     Output: ConvertParsed<Type = Parsed>,
+    Parsed: Clone,
 {
     type Type = Array<Parsed>;
     fn convert(array: Array<Parsed>) -> Result<Self> {
         array.data.into_iter().map(ConvertParsed::convert).collect()
+    }
+    fn aggregate(
+        this: Option<Self::Type>,
+        other: Option<Self::Type>,
+        _: &str,
+        _: &str,
+    ) -> Result<Option<Self::Type>> {
+        Ok(match (this, other) {
+            (None, None) => None,
+            (None, value) => value,
+            (value, None) => value,
+            (Some(mut this), Some(other)) => {
+                this.data.extend_from_slice(&other.data);
+                this.span = this.span.join(other.span).unwrap_or(this.span);
+                Some(this)
+            }
+        })
     }
 }
 
@@ -254,6 +311,7 @@ impl ConvertParsed for bool {
 
 /// Helper struct to parse array literals:
 /// `[a, b, c]`
+#[derive(Clone)]
 pub struct Array<T> {
     data: Vec<T>,
     span: Span,
@@ -285,6 +343,16 @@ convert_parsed!(Path);
 convert_parsed!(Lit);
 convert_parsed![LitStr, LitByteStr, LitChar, LitInt, LitFloat, LitBool, Literal];
 convert_parsed!(Expr);
+
+// TODO make this warning better visable
+convert_parsed! {
+    /// Try to avoid using this, as it will consume everything behind, so it needs to be defined as the
+    /// last parameter.
+    ///
+    /// In the future there might be something to allow better handling of this (maybe by puttin it
+    /// into `()`)
+    TokenStream
+}
 
 convert_parsed!(LitStr => String: LitStr::value);
 // TODO convert_parsed!(LitByteStr => Vec<u8>: LitByteStr::value);

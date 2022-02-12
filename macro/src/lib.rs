@@ -13,7 +13,6 @@ use syn::{
 pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let syn: Path = parse_quote!(::attribute_derive::__private::syn);
     let pm2: Path = parse_quote!(::attribute_derive::__private::proc_macro2);
-    let none: Path = parse_quote!(::core::option::Option::None);
     let some: Path = parse_quote!(::core::option::Option::Some);
     let ok: Path = parse_quote!(::core::result::Result::Ok);
     let err: Path = parse_quote!(::core::result::Result::Err);
@@ -130,18 +129,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 let error1 = format!("`{ident}` is specified multiple times");
                 let error2 = format!("`{ident}` was already specified");
                 option_assignments.push(quote! {
-                    match (&self.#ident, __other.#ident) {
-                        (#none, __value @ #some(_)) => self.#ident = __value,
-                        (#some(__first), #some(__second)) => {
-                            let mut __error = <<#ty as ::attribute_derive::ConvertParsed>::Type as ::attribute_derive::Error>::error(__first, #error1);
-                            #syn::Error::combine(&mut __error, <<#ty as ::attribute_derive::ConvertParsed>::Type as ::attribute_derive::Error>::error(
-                                &__second,
-                                #error2,
-                            ));
-                            return #err(__error);
-                        }
-                        _ => {}
-                    }
+                    self.#ident = <#ty as ::attribute_derive::ConvertParsed>::aggregate(self.#ident.take(), __other.#ident, #error1, #error2)?;
                 });
 
                 let error = if let Some(expected) = expected {
