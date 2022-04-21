@@ -56,16 +56,45 @@
 //! - [`Attribute::from_args`] taking in a [`TokenStream`]
 //! - As `derive(Attribute)` also derives [`Parse`] so you can use the [parse](mod@syn::parse) API,
 //! e.g. with [`parse_macro_input!(tokens as Attribute)`](syn::parse_macro_input!).
-//!
 use std::fmt::Display;
 
 #[doc(hidden)]
 pub use attribute_derive_macro::Attribute;
-use proc_macro2::{Literal, Span, TokenStream};
+use proc_macro2::{Group, Literal, Punct, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::{
-    bracketed, parse::Parse, parse2, parse_quote, punctuated::Punctuated, Expr, Lit, LitBool,
-    LitByteStr, LitChar, LitFloat, LitInt, LitStr, Path, Result, Token, Type,
+    bracketed,
+    parse::{Parse, Result},
+    parse2, parse_quote,
+    punctuated::Punctuated,
+    token::{
+        Abstract, Add, AddEq, And, AndAnd, AndEq, As, Async, At, Auto, Await, Bang, Become, Break,
+        Caret, CaretEq, Colon, Colon2, Comma, Const, Continue, Crate, Div, DivEq, Do, Dollar, Dot,
+        Dot2, Dot3, DotDotEq, Dyn, Else, Enum, Eq, EqEq, Extern, FatArrow, Final, Fn, For, Ge, Gt,
+        If, Impl, In, LArrow, Le, Let, Loop, Lt, Match, Mod, Move, MulEq, Mut, Ne, Or, OrEq, OrOr,
+        Override, Pound, Priv, Pub, Question, RArrow, Ref, Rem, RemEq, Return, SelfType, SelfValue,
+        Semi, Shl, ShlEq, Shr, ShrEq, Star, Static, Struct, Sub, SubEq, Super, Tilde, Trait, Try,
+        Typeof, Underscore, Union, Unsafe, Unsized, Use, Virtual, Where, While, Yield,
+    },
+    Abi, AngleBracketedGenericArguments, Arm, BareFnArg, BinOp, Binding, Block, BoundLifetimes,
+    ConstParam, Constraint, DeriveInput, Expr, ExprArray, ExprAssign, ExprAssignOp, ExprAsync,
+    ExprBinary, ExprBlock, ExprBox, ExprBreak, ExprCall, ExprCast, ExprClosure, ExprContinue,
+    ExprField, ExprForLoop, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMacro, ExprMatch,
+    ExprMethodCall, ExprParen, ExprPath, ExprRange, ExprReference, ExprRepeat, ExprReturn,
+    ExprStruct, ExprTry, ExprTryBlock, ExprTuple, ExprType, ExprUnary, ExprUnsafe, ExprWhile,
+    ExprYield, FieldValue, FieldsNamed, FieldsUnnamed, File, FnArg, ForeignItem, ForeignItemFn,
+    ForeignItemMacro, ForeignItemStatic, ForeignItemType, GenericArgument, GenericMethodArgument,
+    GenericParam, Generics, Ident, ImplItem, ImplItemConst, ImplItemMacro, ImplItemMethod,
+    ImplItemType, Index, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemForeignMod,
+    ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias,
+    ItemType, ItemUnion, ItemUse, Label, Lifetime, LifetimeDef, Lit, LitBool, LitByteStr, LitChar,
+    LitFloat, LitInt, LitStr, Member, Meta, MetaList, MetaNameValue, NestedMeta,
+    ParenthesizedGenericArguments, Pat, Path, PathSegment, RangeLimits, Receiver, ReturnType,
+    Signature, Stmt, Token, TraitBound, TraitBoundModifier, TraitItem, TraitItemConst,
+    TraitItemMacro, TraitItemMethod, TraitItemType, Type, TypeArray, TypeBareFn, TypeGroup,
+    TypeImplTrait, TypeInfer, TypeMacro, TypeNever, TypeParam, TypeParamBound, TypeParen, TypePath,
+    TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, UnOp, UseTree, Variant,
+    Visibility, WhereClause, WherePredicate,
 };
 
 #[deny(missing_docs)]
@@ -449,15 +478,16 @@ impl<T> Error for Array<T> {
 convert_parsed!(Type);
 convert_parsed!(Path);
 convert_parsed!(Lit);
-convert_parsed![LitStr, LitByteStr, LitChar, LitInt, LitFloat, LitBool, Literal];
+convert_parsed![LitStr, LitByteStr, LitChar, LitInt, LitFloat, LitBool];
 convert_parsed!(Expr);
+convert_parsed![TokenTree, Group, Punct, Literal];
 
 // TODO make this warning better visable
 convert_parsed! {
     /// Try to avoid using this, as it will consume everything behind, so it needs to be defined as the
     /// last parameter.
     ///
-    /// In the future there might be something to allow better handling of this (maybe by puttin it
+    /// In the future there might be something to allow better handling of this (maybe by putting it
     /// into `()`)
     TokenStream
 }
@@ -468,237 +498,237 @@ convert_parsed!(LitChar => char: LitChar::value);
 convert_parsed!(LitInt => u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, usize, isize:? LitInt::base10_parse);
 convert_parsed!(LitFloat => f32, f64:? LitFloat::base10_parse);
 
-// TODO convert most of these
-// impl Parse for Group
-// impl Parse for Punct
-// impl Parse for BinOp
-// impl Parse for FnArg
-// impl Parse for ForeignItem
-// impl Parse for GenericArgument
-// impl Parse for GenericParam
-// impl Parse for ImplItem
-// impl Parse for Item
-// impl Parse for Member
-// impl Parse for Meta
-// impl Parse for NestedMeta
-// impl Parse for Pat
-// impl Parse for RangeLimits
-// impl Parse for ReturnType
-// impl Parse for Stmt
-// impl Parse for TraitBoundModifier
-// impl Parse for TraitItem
-// impl Parse for TypeParamBound
-// impl Parse for UnOp
-// impl Parse for UseTree
-// impl Parse for Visibility
-// impl Parse for WherePredicate
-// impl Parse for Abi
-// impl Parse for AngleBracketedGenericArguments
-// impl Parse for Arm
-// impl Parse for BareFnArg
-// impl Parse for Binding
-// impl Parse for Block
-// impl Parse for BoundLifetimes
-// impl Parse for ConstParam
-// impl Parse for Constraint
-// impl Parse for DeriveInput
-// impl Parse for ExprArray
-// impl Parse for ExprAssign
-// impl Parse for ExprAssignOp
-// impl Parse for ExprAsync
-// impl Parse for ExprBinary
-// impl Parse for ExprBlock
-// impl Parse for ExprBox
-// impl Parse for ExprBreak
-// impl Parse for ExprCall
-// impl Parse for ExprCast
-// impl Parse for ExprClosure
-// impl Parse for ExprContinue
-// impl Parse for ExprField
-// impl Parse for ExprForLoop
-// impl Parse for ExprIf
-// impl Parse for ExprIndex
-// impl Parse for ExprLet
-// impl Parse for ExprLit
-// impl Parse for ExprLoop
-// impl Parse for ExprMacro
-// impl Parse for ExprMatch
-// impl Parse for ExprMethodCall
-// impl Parse for ExprParen
-// impl Parse for ExprPath
-// impl Parse for ExprRange
-// impl Parse for ExprReference
-// impl Parse for ExprRepeat
-// impl Parse for ExprReturn
-// impl Parse for ExprStruct
-// impl Parse for ExprTry
-// impl Parse for ExprTryBlock
-// impl Parse for ExprTuple
-// impl Parse for ExprType
-// impl Parse for ExprUnary
-// impl Parse for ExprUnsafe
-// impl Parse for ExprWhile
-// impl Parse for ExprYield
-// impl Parse for FieldValue
-// impl Parse for FieldsNamed
-// impl Parse for FieldsUnnamed
-// impl Parse for File
-// impl Parse for ForeignItemFn
-// impl Parse for ForeignItemMacro
-// impl Parse for ForeignItemStatic
-// impl Parse for ForeignItemType
-// impl Parse for Generics
-// impl Parse for Ident
-// impl Parse for ImplItemConst
-// impl Parse for ImplItemMacro
-// impl Parse for ImplItemMethod
-// impl Parse for ImplItemType
-// impl Parse for Index
-// impl Parse for ItemConst
-// impl Parse for ItemEnum
-// impl Parse for ItemExternCrate
-// impl Parse for ItemFn
-// impl Parse for ItemForeignMod
-// impl Parse for ItemImpl
-// impl Parse for ItemMacro2
-// impl Parse for ItemMacro
-// impl Parse for ItemMod
-// impl Parse for ItemStatic
-// impl Parse for ItemStruct
-// impl Parse for ItemTrait
-// impl Parse for ItemTraitAlias
-// impl Parse for ItemType
-// impl Parse for ItemUnion
-// impl Parse for ItemUse
-// impl Parse for Label
-// impl Parse for Lifetime
-// impl Parse for LifetimeDef
-// impl Parse for syn::Macro
-// impl Parse for MetaList
-// impl Parse for MetaNameValue
-// impl Parse for ParenthesizedGenericArguments
-// impl Parse for PathSegment
-// impl Parse for Receiver
-// impl Parse for Signature
-// impl Parse for TraitBound
-// impl Parse for TraitItemConst
-// impl Parse for TraitItemMacro
-// impl Parse for TraitItemMethod
-// impl Parse for TraitItemType
-// impl Parse for TypeArray
-// impl Parse for TypeBareFn
-// impl Parse for TypeGroup
-// impl Parse for TypeImplTrait
-// impl Parse for TypeInfer
-// impl Parse for TypeMacro
-// impl Parse for TypeNever
-// impl Parse for TypeParam
-// impl Parse for TypeParen
-// impl Parse for TypePath
-// impl Parse for TypePtr
-// impl Parse for TypeReference
-// impl Parse for TypeSlice
-// impl Parse for TypeTraitObject
-// impl Parse for TypeTuple
-// impl Parse for Variant
-// impl Parse for WhereClause
-// impl Parse for Abstract
-// impl Parse for Add
-// impl Parse for AddEq
-// impl Parse for And
-// impl Parse for AndAnd
-// impl Parse for AndEq
-// impl Parse for As
-// impl Parse for Async
-// impl Parse for At
-// impl Parse for Auto
-// impl Parse for Await
-// impl Parse for Bang
-// impl Parse for Become
-// impl Parse for syn::token::Box
-// impl Parse for Break
-// impl Parse for Caret
-// impl Parse for CaretEq
-// impl Parse for Colon2
-// impl Parse for Colon
-// impl Parse for Comma
-// impl Parse for Const
-// impl Parse for Continue
-// impl Parse for Crate
-// impl Parse for Default
-// impl Parse for Div
-// impl Parse for DivEq
-// impl Parse for Do
-// impl Parse for Dollar
-// impl Parse for Dot2
-// impl Parse for Dot3
-// impl Parse for Dot
-// impl Parse for DotDotEq
-// impl Parse for Dyn
-// impl Parse for Else
-// impl Parse for Enum
-// impl Parse for Eq
-// impl Parse for EqEq
-// impl Parse for Extern
-// impl Parse for FatArrow
-// impl Parse for Final
-// impl Parse for Fn
-// impl Parse for For
-// impl Parse for Ge
-// impl Parse for Gt
-// impl Parse for If
-// impl Parse for Impl
-// impl Parse for In
-// impl Parse for LArrow
-// impl Parse for Le
-// impl Parse for Let
-// impl Parse for Loop
-// impl Parse for Lt
-// impl Parse for syn::token::Macro
-// impl Parse for Match
-// impl Parse for Mod
-// impl Parse for Move
-// impl Parse for MulEq
-// impl Parse for Mut
-// impl Parse for Ne
-// impl Parse for Or
-// impl Parse for OrEq
-// impl Parse for OrOr
-// impl Parse for Override
-// impl Parse for Pound
-// impl Parse for Priv
-// impl Parse for Pub
-// impl Parse for Question
-// impl Parse for RArrow
-// impl Parse for Ref
-// impl Parse for Rem
-// impl Parse for RemEq
-// impl Parse for Return
-// impl Parse for SelfType
-// impl Parse for SelfValue
-// impl Parse for Semi
-// impl Parse for Shl
-// impl Parse for ShlEq
-// impl Parse for Shr
-// impl Parse for ShrEq
-// impl Parse for Star
-// impl Parse for Static
-// impl Parse for Struct
-// impl Parse for Sub
-// impl Parse for SubEq
-// impl Parse for Super
-// impl Parse for Tilde
-// impl Parse for Trait
-// impl Parse for Try
-// impl Parse for syn::token::Type
-// impl Parse for Typeof
-// impl Parse for Underscore
-// impl Parse for Union
-// impl Parse for Unsafe
-// impl Parse for Unsized
-// impl Parse for Use
-// impl Parse for Virtual
-// impl Parse for Where
-// impl Parse for While
-// impl Parse for Yield
-// impl Parse for Nothing
+// Some probably useless stuff
+convert_parsed![
+    BinOp,
+    FnArg,
+    ForeignItem,
+    GenericArgument,
+    GenericMethodArgument,
+    GenericParam,
+    ImplItem,
+    Item,
+    Member,
+    Meta,
+    NestedMeta,
+    Pat,
+    RangeLimits,
+    ReturnType,
+    Stmt,
+    TraitBoundModifier,
+    TraitItem,
+    TypeParamBound,
+    UnOp,
+    UseTree,
+    Visibility,
+    WherePredicate,
+    Abi,
+    AngleBracketedGenericArguments,
+    Arm,
+    BareFnArg,
+    Binding,
+    Block,
+    BoundLifetimes,
+    ConstParam,
+    Constraint,
+    DeriveInput,
+    ExprArray,
+    ExprAssign,
+    ExprAssignOp,
+    ExprAsync,
+    ExprBinary,
+    ExprBlock,
+    ExprBox,
+    ExprBreak,
+    ExprCall,
+    ExprCast,
+    ExprClosure,
+    ExprContinue,
+    ExprField,
+    ExprForLoop,
+    ExprIf,
+    ExprIndex,
+    ExprLet,
+    ExprLit,
+    ExprLoop,
+    ExprMacro,
+    ExprMatch,
+    ExprMethodCall,
+    ExprParen,
+    ExprPath,
+    ExprRange,
+    ExprReference,
+    ExprRepeat,
+    ExprReturn,
+    ExprStruct,
+    ExprTry,
+    ExprTryBlock,
+    ExprTuple,
+    ExprType,
+    ExprUnary,
+    ExprUnsafe,
+    ExprWhile,
+    ExprYield,
+    FieldValue,
+    FieldsNamed,
+    FieldsUnnamed,
+    File,
+    ForeignItemFn,
+    ForeignItemMacro,
+    ForeignItemStatic,
+    ForeignItemType,
+    Generics,
+    Ident,
+    ImplItemConst,
+    ImplItemMacro,
+    ImplItemMethod,
+    ImplItemType,
+    Index,
+    ItemConst,
+    ItemEnum,
+    ItemExternCrate,
+    ItemFn,
+    ItemForeignMod,
+    ItemImpl,
+    ItemMacro2,
+    ItemMacro,
+    ItemMod,
+    ItemStatic,
+    ItemStruct,
+    ItemTrait,
+    ItemTraitAlias,
+    ItemType,
+    ItemUnion,
+    ItemUse,
+    Label,
+    Lifetime,
+    LifetimeDef,
+    syn::Macro,
+    MetaList,
+    MetaNameValue,
+    ParenthesizedGenericArguments,
+    PathSegment,
+    Receiver,
+    Signature,
+    TraitBound,
+    TraitItemConst,
+    TraitItemMacro,
+    TraitItemMethod,
+    TraitItemType,
+    TypeArray,
+    TypeBareFn,
+    TypeGroup,
+    TypeImplTrait,
+    TypeInfer,
+    TypeMacro,
+    TypeNever,
+    TypeParam,
+    TypeParen,
+    TypePath,
+    TypePtr,
+    TypeReference,
+    TypeSlice,
+    TypeTraitObject,
+    TypeTuple,
+    Variant,
+    WhereClause,
+    Abstract,
+    Add,
+    AddEq,
+    And,
+    AndAnd,
+    AndEq,
+    As,
+    Async,
+    At,
+    Auto,
+    Await,
+    Bang,
+    Become,
+    syn::token::Box,
+    Break,
+    Caret,
+    CaretEq,
+    Colon2,
+    Colon,
+    Comma,
+    Const,
+    Continue,
+    Crate,
+    syn::token::Default,
+    Div,
+    DivEq,
+    Do,
+    Dollar,
+    Dot2,
+    Dot3,
+    Dot,
+    DotDotEq,
+    Dyn,
+    Else,
+    Enum,
+    Eq,
+    EqEq,
+    Extern,
+    FatArrow,
+    Final,
+    Fn,
+    For,
+    Ge,
+    Gt,
+    If,
+    Impl,
+    In,
+    LArrow,
+    Le,
+    Let,
+    Loop,
+    Lt,
+    syn::token::Macro,
+    Match,
+    Mod,
+    Move,
+    MulEq,
+    Mut,
+    Ne,
+    Or,
+    OrEq,
+    OrOr,
+    Override,
+    Pound,
+    Priv,
+    Pub,
+    Question,
+    RArrow,
+    Ref,
+    Rem,
+    RemEq,
+    Return,
+    SelfType,
+    SelfValue,
+    Semi,
+    Shl,
+    ShlEq,
+    Shr,
+    ShrEq,
+    Star,
+    Static,
+    Struct,
+    Sub,
+    SubEq,
+    Super,
+    Tilde,
+    Trait,
+    Try,
+    syn::token::Type,
+    Typeof,
+    Underscore,
+    Union,
+    Unsafe,
+    Unsized,
+    Use,
+    Virtual,
+    Where,
+    While,
+    Yield
+];
