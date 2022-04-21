@@ -1,6 +1,7 @@
 use attribute_derive::Attribute;
 use proc_macro2::TokenStream;
-use syn::parse_quote;
+use quote::quote;
+use syn::{parse2, parse_quote};
 
 #[test]
 fn test() {
@@ -23,7 +24,55 @@ fn test() {
 
     let parsed = Test::from_attributes([
         parse_quote!(#[test(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)]),
-    ])
+    ].iter())
+    .unwrap();
+    assert_eq!(parsed.b.value(), "hi");
+    assert_eq!(parsed.c, "ho");
+    assert_eq!(parsed.oc, Some("xD".to_owned()));
+    assert!(parsed.od.is_none());
+    assert!(matches!(parsed.d, Type::Tuple(_)));
+    assert!(matches!(parsed.e, Expr::If(_)));
+    assert!(parsed.f.len() == 2);
+    assert!(parsed.g);
+    assert!(!parsed.h);
+    assert_eq!(parsed.i.to_string(), "smth :: hello + 24 / 3 'a' , b = c");
+
+    let parsed = Test::from_args(
+        quote!(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)
+    )
+    .unwrap();
+    assert_eq!(parsed.b.value(), "hi");
+    assert_eq!(parsed.c, "ho");
+    assert_eq!(parsed.oc, Some("xD".to_owned()));
+    assert!(parsed.od.is_none());
+    assert!(matches!(parsed.d, Type::Tuple(_)));
+    assert!(matches!(parsed.e, Expr::If(_)));
+    assert!(parsed.f.len() == 2);
+    assert!(parsed.g);
+    assert!(!parsed.h);
+    assert_eq!(parsed.i.to_string(), "smth :: hello + 24 / 3 'a' , b = c");
+
+    let mut attrs = vec![
+        parse_quote!(#[something]),
+        parse_quote!(#[test(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)]),
+        parse_quote!(#[another(smth)]),
+    ];
+    let parsed = Test::remove_attributes(&mut attrs).unwrap();
+    assert_eq!(parsed.b.value(), "hi");
+    assert_eq!(parsed.c, "ho");
+    assert_eq!(parsed.oc, Some("xD".to_owned()));
+    assert!(parsed.od.is_none());
+    assert!(matches!(parsed.d, Type::Tuple(_)));
+    assert!(matches!(parsed.e, Expr::If(_)));
+    assert!(parsed.f.len() == 2);
+    assert!(parsed.g);
+    assert!(!parsed.h);
+    assert_eq!(parsed.i.to_string(), "smth :: hello + 24 / 3 'a' , b = c");
+    assert_eq!(attrs.len(), 2);
+
+    let parsed: Test = parse2(
+        quote!(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)
+    )
     .unwrap();
     assert_eq!(parsed.b.value(), "hi");
     assert_eq!(parsed.c, "ho");
@@ -47,28 +96,28 @@ fn error() {
     }
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test()])])
+        Test::from_attributes(&[parse_quote!(#[test()])])
             .unwrap_err()
             .to_string(),
         "Mandatory `s` was not specified via the attributes."
     );
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test(s=())])])
+        Test::from_attributes(&[parse_quote!(#[test(s=())])])
             .unwrap_err()
             .to_string(),
         "expected string literal"
     );
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test(invalid_attribute)])])
+        Test::from_attributes(&[parse_quote!(#[test(invalid_attribute)])])
             .unwrap_err()
             .to_string(),
         "Expected supported field `s`"
     );
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test(invalid_attribute="")])])
+        Test::from_attributes(&[parse_quote!(#[test(invalid_attribute="")])])
             .unwrap_err()
             .to_string(),
         "Expected supported field `s`"
@@ -89,35 +138,35 @@ fn error2() {
     }
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test(d="")])])
+        Test::from_attributes(&[parse_quote!(#[test(d="")])])
             .unwrap_err()
             .to_string(),
         "Supported fields are `a`, `b` and `c`"
     );
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test()])])
+        Test::from_attributes(&[parse_quote!(#[test()])])
             .unwrap_err()
             .to_string(),
         "Mandatory `a` was not specified via the attributes."
     );
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test(a=1., b=1)])])
+        Test::from_attributes(&[parse_quote!(#[test(a=1., b=1)])])
             .unwrap_err()
             .to_string(),
         "yes"
     );
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test(a="")])])
+        Test::from_attributes(&[parse_quote!(#[test(a="")])])
             .unwrap_err()
             .to_string(),
         "no"
     );
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test(a=0., b=10.)])])
+        Test::from_attributes(&[parse_quote!(#[test(a=0., b=10.)])])
             .unwrap_err()
             .to_string(),
         "expected integer literal"
@@ -132,7 +181,7 @@ fn error2() {
     // );
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test(a=0.,b=1000000)])])
+        Test::from_attributes(&[parse_quote!(#[test(a=0.,b=1000000)])])
             .unwrap_err()
             .to_string(),
         "number too large to fit in target type"
@@ -148,7 +197,7 @@ fn error_specified() {
     struct Test {}
 
     assert_eq!(
-        Test::from_attributes([parse_quote!(#[test(c="")])])
+        Test::from_attributes(&[parse_quote!(#[test(c="")])])
             .unwrap_err()
             .to_string(),
         "error message"
@@ -175,7 +224,7 @@ fn aggregate() {
     }
 
     assert_eq!(
-        Test::from_attributes([
+        Test::from_attributes(&[
             parse_quote!(#[test(strings=["a"])]),
             parse_quote!(#[test(strings=["b"])])
         ])
@@ -183,4 +232,15 @@ fn aggregate() {
         .strings,
         vec!["a".to_owned(), "b".to_owned()]
     )
+}
+
+#[test]
+fn without_ident() {
+    #[derive(Attribute)]
+    struct Test {
+        a: u8,
+    }
+
+    let parsed: Test = parse_quote!(a = 5);
+    assert_eq!(parsed.a, 5);
 }

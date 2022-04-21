@@ -1,22 +1,18 @@
 use proc_macro2::TokenStream;
 use proc_macro_error::{abort_call_site, proc_macro_error, ResultExt};
-use quote::quote;
+use quote::format_ident;
 use syn::{
-    parse_macro_input, parse_quote, punctuated::Punctuated, DataStruct, DeriveInput, Field, Fields,
-    FieldsNamed, Lit, Meta, MetaNameValue, NestedMeta, Path, Token,
+    parse_macro_input, punctuated::Punctuated, DataStruct, DeriveInput, Field, Fields, FieldsNamed,
+    Lit, Meta, MetaNameValue, NestedMeta, Token,
 };
+
+use quote_use::quote_use as quote;
 
 // TODO generally should use fully qualified names for trait function calls
 
 #[proc_macro_error]
 #[proc_macro_derive(Attribute, attributes(attribute))]
 pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let syn: Path = parse_quote!(::attribute_derive::__private::syn);
-    let pm2: Path = parse_quote!(::attribute_derive::__private::proc_macro2);
-    let some: Path = parse_quote!(::core::option::Option::Some);
-    let ok: Path = parse_quote!(::core::result::Result::Ok);
-    let err: Path = parse_quote!(::core::result::Result::Err);
-
     let DeriveInput {
         attrs,
         ident,
@@ -24,6 +20,8 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         data,
         ..
     } = parse_macro_input!(input as DeriveInput);
+
+    let parser_ident = format_ident!("{ident}__Parser");
 
     let mut attribute_ident = None;
     let mut invalid_field = None;
@@ -54,16 +52,13 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             }
         }
     }
-    let attribute_ident: String = attribute_ident.unwrap_or_else(|| {
-        abort_call_site!(
-            r#"You need to specify the attribute path via `#[attribute(ident="name_of_your_attribute")]`"#
-        );
-    });
+    let attribute_ident = attribute_ident
+        .map(|attribute_ident| quote!(Some(#attribute_ident)))
+        .unwrap_or_else(|| quote!(None));
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let mut options_ty: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
-    let mut options_creation: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
     let mut parsing: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
     let mut option_assignments: Punctuated<TokenStream, Token!(;)> = Punctuated::new();
     let mut assignments: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
@@ -124,35 +119,35 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 
                 options_ty
                     .push(quote!(#ident: Option<<#ty as ::attribute_derive::ConvertParsed>::Type>));
-                options_creation.push(quote!(#ident: None));
 
                 let error1 = format!("`{ident}` is specified multiple times");
                 let error2 = format!("`{ident}` was already specified");
                 option_assignments.push(quote! {
-                    self.#ident = <#ty as ::attribute_derive::ConvertParsed>::aggregate(self.#ident.take(), __other.#ident, #error1, #error2)?;
+                    self.#ident = <#ty as ::attribute_derive::ConvertParsed>::aggregate(self.#ident.take(), $other.#ident, #error1, #error2)?;
                 });
 
                 let error = if let Some(expected) = expected {
-                    quote! {.map_err(|__error| #syn::Error::new(__error.span(), #expected)) }
+                    quote! {.map_err(|__error| ::attribute_derive::__private::syn::Error::new(__error.span(), #expected)) }
                 } else {
                     quote!()
                 };
 
                 parsing.push(quote! {
+                    # use ::attribute_derive::__private::{syn, proc_macro2};
                     #ident_str => {
-                        __options.#ident = #some(
-                            if let #some(#some(__value)) = __is_flag.then(|| <#ty as ::attribute_derive::ConvertParsed>::as_flag()) {
+                        $parser.#ident = Some(
+                            if let Some(Some(__value)) = $is_flag.then(|| <#ty as ::attribute_derive::ConvertParsed>::as_flag()) {
                                 __value
                             } else {
-                                __input.step(|__cursor| match __cursor.punct() {
-                                    #some((__punct, __rest))
-                                        if __punct.as_char() == '=' && __punct.spacing() == #pm2::Spacing::Alone =>
+                                $input.step(|__cursor| match __cursor.punct() {
+                                    Some((__punct, __rest))
+                                        if __punct.as_char() == '=' && __punct.spacing() == proc_macro2::Spacing::Alone =>
                                     {
-                                        #ok(((), __rest))
+                                        Ok(((), __rest))
                                     }
-                                    _ => #err(__cursor.error("Expected assignment `=`")),
+                                    _ => Err(__cursor.error("Expected assignment `=`")),
                                 })?;
-                                #syn::parse::Parse::parse(__input)#error?
+                                syn::parse::Parse::parse($input)#error?
                             }
                         );
                     }
@@ -163,14 +158,15 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 });
                 assignments.push(if default {
                     quote! {
-                        #ident: __options.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t)).unwrap_or_else(|| #ok(<#ty as core::default::Default>::default()))?
+                        #ident: $parser.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t)).unwrap_or_else(|| Ok(<#ty as Default>::default()))?
                     }
                 } else {
                     quote! {
-                        #ident: match __options.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t)) {
+                        # use ::attribute_derive::__private::{syn, proc_macro2};
+                        #ident: match $parser.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t)) {
                                 Some(__option) => __option?,
                                 None if <#ty as ::attribute_derive::ConvertParsed>::default_by_default() => <#ty as ::attribute_derive::ConvertParsed>::default(),
-                                _ => #err(#syn::Error::new(#pm2::Span::call_site(), #error))?,
+                                _ => Err(syn::Error::new(proc_macro2::Span::call_site(), #error))?,
                             }
                     }
                 });
@@ -195,66 +191,74 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
     });
 
     quote! {
+        # use ::attribute_derive::__private::{syn::{self, Result, Ident, Token, parse::{Parse, ParseStream}}, proc_macro2};
+        # use ::attribute_derive::TryExtendOne;
+
+        #[doc(hidden)]
+        #[allow(non_camel_case_types)]
+        #[derive(Default)]
+        struct #parser_ident {
+            #options_ty
+        }
+
+        #[allow(unreachable_code)]
+        impl Parse for #parser_ident {
+            fn parse($input: ParseStream<'_>) -> Result<Self> {
+                let mut $parser: Self = Default::default();
+                loop {
+                    if $input.is_empty() {
+                        break;
+                    }
+
+                    let $variable = Ident::parse($input)?;
+
+                    let $is_flag = !$input.peek(Token!(=));
+
+                    match $variable.to_string().as_str() {
+                        #parsing
+                        _ => {
+                            return Err(syn::Error::new(
+                                $variable.span(),
+                                #error_invalid_name
+                            ))
+                        }
+                    }
+
+                    if $input.is_empty() {
+                        break;
+                    }
+
+                    // Parse `,`
+                    $input.step(|__cursor| match __cursor.punct() {
+                        Some((__punct, __rest)) if __punct.as_char() == ',' => Ok(((), __rest)),
+                        _ => Err(__cursor.error("Expected assignment `=`")),
+                    })?;
+                }
+                Ok($parser)
+            }
+        }
+
+        #[allow(unreachable_code)]
+        impl TryExtendOne for #parser_ident {
+            fn try_extend_one(&mut self, $other: Self) -> Result<()>{
+                #option_assignments
+                Ok(())
+            }
+        }
+
         #[allow(unreachable_code)]
         impl #impl_generics ::attribute_derive::Attribute for #ident #ty_generics #where_clause {
-            fn from_attributes(__attrs: impl ::core::iter::IntoIterator<Item = #syn::Attribute>) -> #syn::Result<Self>{
-                struct __Options{
-                    #options_ty
-                }
-                impl __Options {
-                    fn extend_with(&mut self, __other:Self) -> #syn::Result<()>{
-                        #option_assignments
-                        #ok(())
-                    }
-                }
-                impl #syn::parse::Parse for __Options {
-                    fn parse(__input: #syn::parse::ParseStream<'_>) -> #syn::Result<Self> {
-                        let mut __options = __Options{
-                            #options_creation
-                        };
-                        loop {
-                            if __input.is_empty() {
-                                break;
-                            }
+            const IDENT: Option<&'static str> = #attribute_ident;
+            type Parser = #parser_ident;
 
-                            let __variable = #syn::Ident::parse(__input)?;
+            fn from_parser($parser: Self::Parser) -> Result<Self> {
+                Ok(Self{#assignments})
+            }
+        }
 
-                            let __is_flag = !__input.peek(#syn::Token!(=));
-
-                            match __variable.to_string().as_str() {
-                                #parsing
-                                _ => {
-                                    return #err(#syn::Error::new(
-                                        __variable.span(),
-                                        #error_invalid_name
-                                    ))
-                                }
-                            }
-
-                            if __input.is_empty() {
-                                break;
-                            }
-
-                            // Parse `,`
-                            __input.step(|__cursor| match __cursor.punct() {
-                                #some((__punct, __rest)) if __punct.as_char() == ',' => #ok(((), __rest)),
-                                _ => #err(__cursor.error("Expected assignment `=`")),
-                            })?;
-                        }
-                        Ok(__options)
-                    }
-                }
-                let mut __options = __Options{
-                    #options_creation
-                };
-                for __attribute in __attrs {
-                    if __attribute.path.is_ident(#attribute_ident) {
-                        __options.extend_with(__attribute.parse_args()?)?;
-                    }
-                }
-                #ok(Self {
-                    #assignments
-                })
+        impl #impl_generics Parse for #ident #ty_generics #where_clause {
+            fn parse($input: ParseStream<'_>) -> Result<Self> {
+                Parse::parse($input).and_then(Self::from_parser)
             }
         }
     }

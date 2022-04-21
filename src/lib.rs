@@ -38,14 +38,34 @@
 //! - literals in top level (meaning something like `#[attr(42, 3.14, "hi")]`
 //! - function like arguments (something like `#[attr(view(a = "test"))]`
 //! - other syntaxes, maybe something like `key: value`
+//!
+//! ## Parse methods
+//!
+//! There are multiple ways of parsing a struct deriving [`Attribute`].
+//!
+//! For helper attributes there is:
+//! - [`Attribute::from_attributes`] which takes in an [`IntoIterator<Item = &'a
+//! syn::Attribute`](syn::Attribute)
+//! (e.g. a [`&Vec<syn::Attribute>`](syn::Attribute)). Most useful for derive macros.
+//! - [`Attribute::remove_attributes`] which takes an [`&mut Vec<syn::Attribute>`](syn::Attribute)
+//! and does not only parse the [`Attribute`] but also removes those matching. Useful for helper
+//! attributes for proc macros, where the helper attributes need to be removed.
+//!
+//! For parsing a single [`TokenStream`] e.g. for parsing the proc macro input there a two ways:
+//!
+//! - [`Attribute::from_args`] taking in a [`TokenStream`]
+//! - As `derive(Attribute)` also derives [`Parse`] so you can use the [parse](mod@syn::parse) API,
+//! e.g. with [`parse_macro_input!(tokens as Attribute)`](syn::parse_macro_input!).
+//!
 use std::fmt::Display;
 
 #[doc(hidden)]
 pub use attribute_derive_macro::Attribute;
 use proc_macro2::{Literal, Span, TokenStream};
+use quote::ToTokens;
 use syn::{
-    bracketed, parse::Parse, punctuated::Punctuated, Expr, Lit, LitBool, LitByteStr, LitChar,
-    LitFloat, LitInt, LitStr, Path, Result, Token, Type, __private::ToTokens, parse_quote,
+    bracketed, parse::Parse, parse2, parse_quote, punctuated::Punctuated, Expr, Lit, LitBool,
+    LitByteStr, LitChar, LitFloat, LitInt, LitStr, Path, Result, Token, Type,
 };
 
 #[deny(missing_docs)]
@@ -82,10 +102,13 @@ pub mod __private {
 /// ```ignore
 /// #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()], some_flag)]
 /// ```
-pub trait Attribute
-where
-    Self: Sized,
-{
+pub trait Attribute: Sized {
+    const IDENT: Option<&'static str>;
+    type Parser: TryExtendOne + Parse + Default;
+
+    #[doc(hidden)]
+    fn from_parser(parser: Self::Parser) -> Result<Self>;
+
     /// Parses an [`IntoIterator`] of [`syn::Attributes`](syn::Attribute) e.g.
     /// [`Vec<Attribute>`](Vec).
     ///
@@ -96,9 +119,94 @@ where
     /// ```
     /// and also catch duplicate/conflicting settings over those.
     ///
+    /// This is best used for derive macros, where you don't need to remove your attributes.
+    ///
+    /// # Panics
+    /// The default implementation panics, when [`IDENT`](Self::IDENT) is not set, when using the
+    /// derive macro, this can be set via `#[attribute(ident="some_ident")]`.
+    ///
+    /// # Errors
     /// Fails with a [`syn::Error`] so you can conveniently return that as a compiler error in a proc
-    /// macro.
-    fn from_attributes(attrs: impl IntoIterator<Item = syn::Attribute>) -> Result<Self>;
+    /// macro in the following cases
+    ///
+    /// - A necessary parameter is omitted
+    /// - Invalid input is given for a parameter
+    /// - A non aggregating parameter is specified multiple times
+    /// - An attribute called [`IDENT`](Self::IDENT) has invalid syntax (e.g. `#attr(a: "a")`)
+    fn from_attributes<'a>(attrs: impl IntoIterator<Item = &'a syn::Attribute>) -> Result<Self> {
+        attrs
+            .into_iter()
+            .filter_map(|attr| {
+                attr.path
+                    .is_ident(Self::IDENT.expect(r#"To use `from_attributes` you need to pass the attribute name while deriving with `#[attribute(ident="some_ident")]"#))
+                    .then(|| attr.parse_args::<Self::Parser>())
+            })
+            .try_fold(Self::Parser::default(), |mut acc, item| {
+                acc.try_extend_one(item?)?;
+                Ok(acc)
+            })
+            .and_then(Self::from_parser)
+    }
+
+    /// Parses an [`&mut Vec<syn::Attributes>`](syn::Attribute). Removing matching attributes.
+    ///
+    /// It can therefore parse fields set over multiple attributes like:
+    /// ```ignore
+    /// #[collection(authority = "Authority", name = "Name")]
+    /// #[collection(views = [A, B])]
+    /// ```
+    /// and also catch duplicate/conflicting settings over those.
+    ///
+    /// Use this if you are implementing an attribute macro, and need to remove your helper
+    /// attributes.
+    ///
+    /// # Panics
+    /// The default implementation panics, when [`IDENT`](Self::IDENT) is not set, when using the
+    /// derive macro, this can be set via `#[attribute(ident="some_ident")]`.
+    ///
+    /// # Errors
+    /// Fails with a [`syn::Error`] so you can conveniently return that as a compiler error in a proc
+    /// macro in the following cases
+    ///
+    /// - A necessary parameter is omitted
+    /// - Invalid input is given for a parameter
+    /// - A non aggregating parameter is specified multiple times
+    /// - An attribute called [`IDENT`](Self::IDENT) has invalid syntax (e.g. `#attr(a: "a")`)
+    fn remove_attributes(attrs: &mut Vec<syn::Attribute>) -> Result<Self> {
+        let mut parser: Self::Parser = Default::default();
+        let mut i = 0;
+        while i < attrs.len() {
+            if attrs[i].path.is_ident(Self::IDENT.expect(r#"To use `remove_attributes` you need to pass the attribute name while deriving with `#[attribute(ident="some_ident")]"#)) {
+                parser.try_extend_one(attrs.remove(i).parse_args()?)?;
+            } else {
+                i += 1;
+            }
+        }
+        Self::from_parser(parser)
+    }
+
+    /// Parses a [`TokenStream`](proc_macro2::TokenStream).
+    ///
+    /// Useful for implementing general proc macros to parse the input of your macro.
+    ///
+    /// Due to this only parsing the input for a single attribute it is not able to aggregate input
+    /// spread over multiple attributes.
+    ///
+    /// # Errors
+    /// Fails with a [`syn::Error`] so you can conveniently return that as a compiler error in a proc
+    /// macro in the following cases
+    ///
+    /// - A necessary parameter is omitted
+    /// - Invalid input is given for a parameter
+    /// - A non aggregating parameter is specified multiple times
+    /// - An attribute called [`IDENT`](Self::IDENT) has invalid syntax (e.g. `#attr(a: "a")`)
+    fn from_args(tokens: TokenStream) -> Result<Self> {
+        parse2(tokens).and_then(Self::from_parser)
+    }
+}
+
+pub trait TryExtendOne {
+    fn try_extend_one(&mut self, other: Self) -> Result<()>;
 }
 
 /// Helper trait to convert syn types implementing [`Parse`] like [`LitStr`](struct@LitStr) to rust

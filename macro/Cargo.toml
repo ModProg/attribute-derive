@@ -18,5 +18,6 @@ proc-macro = true
 [dependencies]
 proc-macro-error = "1.0.4"
 proc-macro2 = "1.0.36"
-quote = "1.0"
+quote = "1.0.18"
+quote-use = { version = "0.4.3", features = ["namespace_idents", "prelude_core", "prelude_2021"], default-features = false }
 syn = "1.0"
