@@ -250,7 +250,7 @@ pub trait TryExtendOne {
 pub trait ConvertParsed
 where
     Self: Sized,
-    Self::Type: Error + Clone,
+    Self::Type: Error,
 {
     /// The type this can be converted from
     type Type;
@@ -259,12 +259,12 @@ where
     /// This can return an error, e.g. when parsing an integer too large for a [`u8`] into an `u8`
     fn convert(value: Self::Type) -> Result<Self>;
     /// Should values of this type return their default when they are not specified even when the
-    /// `default` flag is not specified (only returns `true` for [`Option`] currently)
+    /// `default` flag is not specified (only returns `true` for [`Option`], [`Vec`] and [`bool`] currently)
     fn default_by_default() -> bool {
         false
     }
     /// The default value, this is necessary to implement the implicit default behavior of
-    /// [`Option`]
+    /// [`Option`] and [`bool`].
     ///
     /// This is necessary as the [`Default`] trait cannot be used in expanded code, but normally you
     /// can easily implement it using it:
