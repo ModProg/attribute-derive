@@ -104,6 +104,18 @@ pub mod __private {
     pub use syn;
 }
 
+/// Helper trait providing the path for an attribute.
+///
+/// Automatically derived with [`Attribute`], if `#[attribute(ident =
+/// "some_ident")]` is provided.
+/// ```
+pub trait AttributeIdent: Sized {
+    const ATTRIBUTE_IDENT: &'static str;
+    fn get_attribute_ident() -> &'static str {
+        Self::ATTRIBUTE_IDENT
+    }
+}
+
 /// The trait you actually derive on your attribute struct.
 ///
 /// Basic gist is a struct like this:
@@ -132,7 +144,6 @@ pub mod __private {
 /// #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()], some_flag)]
 /// ```
 pub trait Attribute: Sized {
-    const IDENT: Option<&'static str>;
     type Parser: TryExtendOne + Parse + Default;
 
     #[doc(hidden)]
@@ -162,12 +173,15 @@ pub trait Attribute: Sized {
     /// - Invalid input is given for a parameter
     /// - A non aggregating parameter is specified multiple times
     /// - An attribute called [`IDENT`](Self::IDENT) has invalid syntax (e.g. `#attr(a: "a")`)
-    fn from_attributes<'a>(attrs: impl IntoIterator<Item = &'a syn::Attribute>) -> Result<Self> {
+    fn from_attributes<'a>(attrs: impl IntoIterator<Item = &'a syn::Attribute>) -> Result<Self>
+    where
+        Self: AttributeIdent,
+    {
         attrs
             .into_iter()
             .filter_map(|attr| {
                 attr.path
-                    .is_ident(Self::IDENT.expect(r#"To use `from_attributes` you need to pass the attribute name while deriving with `#[attribute(ident="some_ident")]"#))
+                    .is_ident(Self::ATTRIBUTE_IDENT)
                     .then(|| attr.parse_args::<Self::Parser>())
             })
             .try_fold(Self::Parser::default(), |mut acc, item| {
@@ -201,11 +215,14 @@ pub trait Attribute: Sized {
     /// - Invalid input is given for a parameter
     /// - A non aggregating parameter is specified multiple times
     /// - An attribute called [`IDENT`](Self::IDENT) has invalid syntax (e.g. `#attr(a: "a")`)
-    fn remove_attributes(attrs: &mut Vec<syn::Attribute>) -> Result<Self> {
+    fn remove_attributes(attrs: &mut Vec<syn::Attribute>) -> Result<Self>
+    where
+        Self: AttributeIdent,
+    {
         let mut parser: Self::Parser = Default::default();
         let mut i = 0;
         while i < attrs.len() {
-            if attrs[i].path.is_ident(Self::IDENT.expect(r#"To use `remove_attributes` you need to pass the attribute name while deriving with `#[attribute(ident="some_ident")]"#)) {
+            if attrs[i].path.is_ident(Self::ATTRIBUTE_IDENT) {
                 parser.try_extend_one(attrs.remove(i).parse_args()?)?;
             } else {
                 i += 1;

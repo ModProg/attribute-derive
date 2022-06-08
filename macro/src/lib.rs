@@ -52,11 +52,20 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             }
         }
     }
-    let attribute_ident = attribute_ident
-        .map(|attribute_ident| quote!(Some(#attribute_ident)))
-        .unwrap_or_else(|| quote!(None));
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let attribute_ident = attribute_ident
+        .map(|attribute_ident| {
+            quote! {
+                # use attribute_derive::AttributeIdent;
+
+                impl #impl_generics AttributeIdent for #ident #ty_generics #where_clause {
+                    const ATTRIBUTE_IDENT: &'static str = #attribute_ident;
+                }
+            }
+        })
+        .unwrap_or_default();
 
     let mut options_ty: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
     let mut parsing: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
@@ -246,9 +255,10 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             }
         }
 
+        #attribute_ident
+
         #[allow(unreachable_code)]
         impl #impl_generics ::attribute_derive::Attribute for #ident #ty_generics #where_clause {
-            const IDENT: Option<&'static str> = #attribute_ident;
             type Parser = #parser_ident;
 
             fn from_parser($parser: Self::Parser) -> Result<Self> {
