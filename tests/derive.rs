@@ -9,7 +9,8 @@ fn test() {
     #[derive(Attribute)]
     #[attribute(ident = "test")]
     struct Test {
-        // a: u8,
+        #[attribute(positional)]
+        a: u8,
         b: LitStr,
         c: String,
         oc: Option<String>,
@@ -23,9 +24,10 @@ fn test() {
     }
 
     let parsed = Test::from_attributes([
-        parse_quote!(#[test(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)]),
+        parse_quote!(#[test(8, b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)]),
     ].iter())
     .unwrap();
+    assert_eq!(parsed.a, 8);
     assert_eq!(parsed.b.value(), "hi");
     assert_eq!(parsed.c, "ho");
     assert_eq!(parsed.oc, Some("xD".to_owned()));
@@ -38,9 +40,10 @@ fn test() {
     assert_eq!(parsed.i.to_string(), "smth :: hello + 24 / 3 'a' , b = c");
 
     let parsed = Test::from_args(
-        quote!(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)
+        quote!(8, b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)
     )
     .unwrap();
+    assert_eq!(parsed.a, 8);
     assert_eq!(parsed.b.value(), "hi");
     assert_eq!(parsed.c, "ho");
     assert_eq!(parsed.oc, Some("xD".to_owned()));
@@ -54,10 +57,11 @@ fn test() {
 
     let mut attrs = vec![
         parse_quote!(#[something]),
-        parse_quote!(#[test(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)]),
+        parse_quote!(#[test(8, b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)]),
         parse_quote!(#[another(smth)]),
     ];
     let parsed = Test::remove_attributes(&mut attrs).unwrap();
+    assert_eq!(parsed.a, 8);
     assert_eq!(parsed.b.value(), "hi");
     assert_eq!(parsed.c, "ho");
     assert_eq!(parsed.oc, Some("xD".to_owned()));
@@ -71,9 +75,10 @@ fn test() {
     assert_eq!(attrs.len(), 2);
 
     let parsed: Test = parse2(
-        quote!(b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)
+        quote!(8, b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)
     )
     .unwrap();
+    assert_eq!(parsed.a, 8);
     assert_eq!(parsed.b.value(), "hi");
     assert_eq!(parsed.c, "ho");
     assert_eq!(parsed.oc, Some("xD".to_owned()));

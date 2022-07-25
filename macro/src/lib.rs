@@ -68,6 +68,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         .unwrap_or_default();
 
     let mut options_ty: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
+    let mut parsing_positional: Punctuated<TokenStream, Token!(;)> = Punctuated::new();
     let mut parsing: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
     let mut option_assignments: Punctuated<TokenStream, Token!(;)> = Punctuated::new();
     let mut assignments: Punctuated<TokenStream, Token!(,)> = Punctuated::new();
@@ -83,13 +84,14 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             } in named.into_iter()
             {
                 let mut default = false;
+                let mut positional = false;
                 let mut missing = None;
                 let mut expected = None;
                 for attribute in attrs
                     .into_iter()
                     .filter(|attribute| attribute.path.is_ident("attribute"))
                 {
-                    const VALID_FORMAT: &str = r#"Expected `#[attribute(default, missing="error message", expected="error message"])`"#;
+                    const VALID_FORMAT: &str = r#"Expected `#[attribute(default, positional, missing="error message", expected="error message"])`"#;
                     let meta: Meta = attribute.parse_meta().unwrap_or_abort();
                     if let Meta::List(meta) = meta {
                         for meta in meta.nested {
@@ -106,14 +108,16 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                                         ("expected", Lit::Str(lit)) => expected = Some(lit.value()),
                                         _ => abort_call_site!(VALID_FORMAT),
                                     },
-
-                                    Meta::Path(path) => {
-                                        if path.is_ident("default") {
-                                            default = true;
-                                        } else {
-                                            abort_call_site!(VALID_FORMAT);
-                                        }
-                                    }
+                                    Meta::Path(path) => match path
+                                        .get_ident()
+                                        .unwrap_or_else(|| abort_call_site!(VALID_FORMAT))
+                                        .to_string()
+                                        .as_str()
+                                    {
+                                        "default" => default = true,
+                                        "positional" => positional = true,
+                                        _ => abort_call_site!(VALID_FORMAT),
+                                    },
                                     _ => abort_call_site!(VALID_FORMAT),
                                 }
                             } else {
@@ -141,26 +145,44 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                     quote!()
                 };
 
-                parsing.push(quote! {
-                    # use ::attribute_derive::__private::{syn, proc_macro2};
-                    #ident_str => {
-                        $parser.#ident = Some(
-                            if let Some(Some(__value)) = $is_flag.then(|| <#ty as ::attribute_derive::ConvertParsed>::as_flag()) {
-                                __value
-                            } else {
-                                $input.step(|__cursor| match __cursor.punct() {
-                                    Some((__punct, __rest))
-                                        if __punct.as_char() == '=' && __punct.spacing() == proc_macro2::Spacing::Alone =>
-                                    {
-                                        Ok(((), __rest))
-                                    }
-                                    _ => Err(__cursor.error("Expected assignment `=`")),
-                                })?;
-                                syn::parse::Parse::parse($input)#error?
+                if positional {
+                    parsing_positional.push(quote! {
+                        # use ::attribute_derive::__private::{syn, proc_macro2};
+                        $parser.#ident = Some(syn::parse::Parse::parse($input)#error?);
+                        if $input.is_empty() {
+                            break
+                        }
+                        $input.step(|$cursor| match $cursor.punct() {
+                            Some(($punct, $rest))
+                                if $punct.as_char() == ',' =>
+                            {
+                                Ok(((), $rest))
                             }
-                        );
-                    }
-                });
+                            _ => Err($cursor.error("Expected ,")),
+                        })?;
+                    })
+                } else {
+                    parsing.push(quote! {
+                        # use ::attribute_derive::__private::{syn, proc_macro2};
+                        #ident_str => {
+                            $parser.#ident = Some(
+                                if let Some(Some(__value)) = $is_flag.then(|| <#ty as ::attribute_derive::ConvertParsed>::as_flag()) {
+                                    __value
+                                } else {
+                                    $input.step(|__cursor| match __cursor.punct() {
+                                        Some((__punct, __rest))
+                                            if __punct.as_char() == '=' && __punct.spacing() == proc_macro2::Spacing::Alone =>
+                                        {
+                                            Ok(((), __rest))
+                                        }
+                                        _ => Err(__cursor.error("Expected assignment `=`")),
+                                    })?;
+                                    syn::parse::Parse::parse($input)#error?
+                                }
+                            );
+                        }
+                    });
+                }
 
                 let error = missing.unwrap_or_else(|| {
                     format!("Mandatory `{ident}` was not specified via the attributes.")
@@ -215,6 +237,10 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             fn parse($input: ParseStream<'_>) -> Result<Self> {
                 let mut $parser: Self = Default::default();
                 loop {
+                    #parsing_positional
+                    break;
+                }
+                loop {
                     if $input.is_empty() {
                         break;
                     }
@@ -240,7 +266,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                     // Parse `,`
                     $input.step(|__cursor| match __cursor.punct() {
                         Some((__punct, __rest)) if __punct.as_char() == ',' => Ok(((), __rest)),
-                        _ => Err(__cursor.error("Expected assignment `=`")),
+                        _ => Err(__cursor.error("Expected end of arg `,`")),
                     })?;
                 }
                 Ok($parser)

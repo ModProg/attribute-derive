@@ -161,10 +161,6 @@ pub trait Attribute: Sized {
     ///
     /// This is best used for derive macros, where you don't need to remove your attributes.
     ///
-    /// # Panics
-    /// The default implementation panics, when [`IDENT`](Self::IDENT) is not set, when using the
-    /// derive macro, this can be set via `#[attribute(ident="some_ident")]`.
-    ///
     /// # Errors
     /// Fails with a [`syn::Error`] so you can conveniently return that as a compiler error in a proc
     /// macro in the following cases
@@ -202,10 +198,6 @@ pub trait Attribute: Sized {
     ///
     /// Use this if you are implementing an attribute macro, and need to remove your helper
     /// attributes.
-    ///
-    /// # Panics
-    /// The default implementation panics, when [`IDENT`](Self::IDENT) is not set, when using the
-    /// derive macro, this can be set via `#[attribute(ident="some_ident")]`.
     ///
     /// # Errors
     /// Fails with a [`syn::Error`] so you can conveniently return that as a compiler error in a proc
