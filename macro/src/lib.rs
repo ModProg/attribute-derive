@@ -1,12 +1,12 @@
 use proc_macro2::TokenStream;
 use proc_macro_error::{abort_call_site, proc_macro_error, ResultExt};
 use quote::format_ident;
-use syn::{
-    parse_macro_input, punctuated::Punctuated, DataStruct, DeriveInput, Field, Fields, FieldsNamed,
-    Lit, Meta, MetaNameValue, NestedMeta, Token,
-};
-
 use quote_use::quote_use as quote;
+use syn::punctuated::Punctuated;
+use syn::{
+    parse_macro_input, DataStruct, DeriveInput, Field, Fields, FieldsNamed, Lit, Meta,
+    MetaNameValue, NestedMeta, Token,
+};
 
 // TODO generally should use fully qualified names for trait function calls
 
@@ -30,7 +30,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         .into_iter()
         .filter(|attribute| attribute.path.is_ident("attribute"))
     {
-        const VALID_FORMAT: &str = r#"Expected `#[attribute(ident="name_of_your_attribute", invalid_field="error message")]`"#;
+        const VALID_FORMAT: &str = r#"Expected `#[attribute(ident="name_of_your_attribute", invalid_field="error message", missing="error messag", conflicts(a, b)")]`"#;
         let meta: Meta = attribute.parse_meta().unwrap_or_abort();
         if let Meta::List(meta) = meta {
             for meta in meta.nested {
@@ -208,16 +208,16 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         _ => abort_call_site!("Only works on structs with named fields"),
     };
 
-    let error_invalid_name = invalid_field.unwrap_or_else(|| {
-        if possible_variables.len() > 1 {
+    let error_invalid_name = invalid_field.unwrap_or_else(|| match possible_variables.len() {
+        0 => format!("Expected empty attribute"),
+        1 => format!("Expected supported field {}", possible_variables[0]),
+        _ => {
             let last = possible_variables.pop().unwrap();
             format!(
                 "Supported fields are {} and {}",
                 possible_variables.join(", "),
                 last
             )
-        } else {
-            format!("Expected supported field {}", possible_variables[0])
         }
     });
 

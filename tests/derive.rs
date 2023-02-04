@@ -179,8 +179,8 @@ fn error2() {
 
     // FIXME I expected this to fail....
     // assert_eq!(
-    //     Test::from_attributes([parse_quote!(#[test(a=1.7976931348623157E+308f64,b=0)])])
-    //         .unwrap_err()
+    //     Test::from_attributes([parse_quote!(#[test(a=1.7976931348623157E+308f64,
+    // b=0)])])         .unwrap_err()
     //         .to_string(),
     //     "unexpected end of input, Expected assignment `=`"
     // );
@@ -248,4 +248,11 @@ fn without_ident() {
 
     let parsed: Test = parse_quote!(a = 5);
     assert_eq!(parsed.a, 5);
+}
+
+#[test]
+fn empty() {
+    #[derive(Attribute)]
+    #[attribute(ident = "test")]
+    struct Test {}
 }
