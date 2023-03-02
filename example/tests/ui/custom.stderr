@@ -1,0 +1,49 @@
+error: missing field `example`
+
+       = help: try ident: example=2.5
+ --> tests/ui/custom.rs:3:10
+  |
+3 | #[derive(Custom)]
+  |          ^^^^^^
+  |
+  = note: this error originates in the derive macro `Custom` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: missing flag `mandatory_flag`
+
+       = help: try ident: mandatory_flag
+ --> tests/ui/custom.rs:6:10
+  |
+6 | #[derive(Custom)]
+  |          ^^^^^^
+  |
+  = note: this error originates in the derive macro `Custom` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: conflict_a !!! conflict_b
+  --> tests/ui/custom.rs:23:18
+   |
+23 | #[a(conflict_a = "hey")]
+   |                  ^^^^^
+
+error: conflict_b !!! conflict_a
+  --> tests/ui/custom.rs:24:18
+   |
+24 | #[b(conflict_b = "hi")]
+   |                  ^^^^
+
+error: found `hello` but expected one of `optional_implicit`, `optional_explicit`, `optional_default`, `default`, `conflict_a`, `conflict_b`, `example`, `flag`, `mandatory_flag`
+  --> tests/ui/custom.rs:28:9
+   |
+28 | #[ident(hello)]
+   |         ^^^^^
+
+error: found hello, but expected none
+  --> tests/ui/custom.rs:30:9
+   |
+30 | #[empty(hello)]
+   |         ^^^^^
+
+error: found hello, but expected field
+  --> tests/ui/custom.rs:29:10
+   |
+29 | #[single(hello)]
+   |          ^^^^^

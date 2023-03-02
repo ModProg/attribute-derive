@@ -2,12 +2,12 @@
 categories = ["rust-patterns", "development-tools::procedural-macro-helpers", "parsing"]
 description = "Clap for proc macro attributes"
 documentation = "https://docs.rs/attribute-derive"
-include = ["src/**/*", "Cargo.toml", "LICENSE", "README.md"]
+include = ["src/**/*", "LICENSE", "README.md"]
 keywords = ["derive", "macro"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/ModProg/attribute-derive"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 name = "attribute-derive-macro"
 
@@ -16,8 +16,12 @@ proc-macro = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-proc-macro-error = "1.0.4"
-proc-macro2 = "1.0.36"
-quote = "1.0.18"
-quote-use = { version = "0.5.0", features = ["namespace_idents"] }
-syn = "1.0"
+proc-macro-error = "1"
+proc-macro2 = "1"
+quote = "1"
+quote-use = { version = "0.6", features = ["namespace_idents"] }
+syn = "1"
+proc-macro-utils = "0.5.1"
+# proc-macro-utils = {path = "../../proc-macro-utils"}
+interpolator = { version = "0.4.0", features = ["iter"] }
+collection_literals = "1"

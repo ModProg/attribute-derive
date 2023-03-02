@@ -1,0 +1,49 @@
+error: required `example` is not specified
+
+       = help: try `#[ident(example=2.5)]`
+ --> tests/ui/normal.rs:3:10
+  |
+3 | #[derive(Normal)]
+  |          ^^^^^^
+  |
+  = note: this error originates in the derive macro `Normal` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: required `mandatory_flag` is not specified
+
+       = help: try `#[ident(mandatory_flag)]`
+ --> tests/ui/normal.rs:6:10
+  |
+6 | #[derive(Normal)]
+  |          ^^^^^^
+  |
+  = note: this error originates in the derive macro `Normal` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: `conflict_a` conflicts with mutually exclusive `conflict_b`
+  --> tests/ui/normal.rs:23:18
+   |
+23 | #[a(conflict_a = "hey")]
+   |                  ^^^^^
+
+error: `conflict_b` conflicts with mutually exclusive `conflict_a`
+  --> tests/ui/normal.rs:24:18
+   |
+24 | #[b(conflict_b = "hi")]
+   |                  ^^^^
+
+error: supported fields are `optional_implicit`, `optional_explicit`, `optional_default`, `default`, `conflict_a`, `conflict_b`, `example`, `flag` and `mandatory_flag`
+  --> tests/ui/normal.rs:28:9
+   |
+28 | #[ident(hello)]
+   |         ^^^^^
+
+error: expected empty attribute
+  --> tests/ui/normal.rs:30:9
+   |
+30 | #[empty(hello)]
+   |         ^^^^^
+
+error: expected supported field `field`
+  --> tests/ui/normal.rs:29:10
+   |
+29 | #[single(hello)]
+   |          ^^^^^
