@@ -170,7 +170,7 @@ use syn::{
 
 #[doc(hidden)]
 pub mod __private {
-    pub use {proc_macro2, syn};
+    pub use {proc_macro2, quote, syn};
 }
 
 /// Helper trait providing the path for an attribute.
@@ -393,16 +393,16 @@ where
     /// Currently this is only implemented for [`Arrays`](Array)
     #[allow(unused)]
     fn aggregate(
-        this: Option<Self::Type>,
-        other: Option<Self::Type>,
+        this: Option<IdentValue<Self::Type>>,
+        other: Option<IdentValue<Self::Type>>,
         error_msg: &str,
-    ) -> Result<Option<Self::Type>> {
+    ) -> Result<Option<IdentValue<Self::Type>>> {
         match (this, other) {
             (None, value) => Ok(value),
             (value, None) => Ok(value),
             (Some(this), Some(other)) => {
-                let mut error = this.error(error_msg);
-                syn::Error::combine(&mut error, other.error(error_msg));
+                let mut error = this.ident.error(error_msg);
+                syn::Error::combine(&mut error, other.ident.error(error_msg));
                 Err(error)
             }
         }
@@ -423,6 +423,14 @@ where
     fn error(&self, message: impl Display) -> syn::Error {
         syn::Error::new_spanned(self, message)
     }
+}
+
+/// Helper struct to hold a value and the ident of its property
+pub struct IdentValue<T> {
+    /// The value
+    pub value: T,
+    /// The ident
+    pub ident: Ident,
 }
 
 /// Macro to easily implement [`ConvertParsed`] for syn types
@@ -507,17 +515,22 @@ where
     }
 
     fn aggregate(
-        this: Option<Self::Type>,
-        other: Option<Self::Type>,
+        this: Option<IdentValue<Self::Type>>,
+        other: Option<IdentValue<Self::Type>>,
         _: &str,
-    ) -> Result<Option<Self::Type>> {
+    ) -> Result<Option<IdentValue<Self::Type>>> {
         Ok(match (this, other) {
             (None, None) => None,
             (None, value) => value,
             (value, None) => value,
             (Some(mut this), Some(other)) => {
-                this.data.extend_from_slice(&other.data);
-                this.span = this.span.join(other.span).unwrap_or(this.span);
+                this.value.data.extend_from_slice(&other.value.data);
+                this.value.span = this
+                    .value
+                    .span
+                    .join(other.value.span)
+                    .unwrap_or(this.value.span);
+                // TODO figure out what to do with the idents
                 Some(this)
             }
         })

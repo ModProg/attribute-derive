@@ -410,7 +410,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 }
 
                 options_ty
-                    .push(quote!(#ident: Option<<#ty as ::attribute_derive::ConvertParsed>::Type>));
+                    .push(quote!(#ident: Option<::attribute_derive::IdentValue<<#ty as ::attribute_derive::ConvertParsed>::Type>>));
 
                 let error = format(
                     struct_error.duplicate_field(),
@@ -468,22 +468,24 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 // } else {
                 parsing.push(quote! {
                         # use ::attribute_derive::__private::{syn, proc_macro2};
+                        # use ::attribute_derive::IdentValue;
                         #ident_str => {
-                            $parser.#ident = Some(
-                                if let Some(Some(__value)) = $is_flag.then(|| <#ty as ::attribute_derive::ConvertParsed>::as_flag()) {
-                                    __value
-                                } else {
-                                    $input.step(|__cursor| match __cursor.punct() {
-                                        Some((__punct, __rest))
-                                            if __punct.as_char() == '=' && __punct.spacing() == proc_macro2::Spacing::Alone =>
-                                        {
-                                            Ok(((), __rest))
-                                        }
-                                        _ => Err(__cursor.error("expected assignment `=`")),
-                                    })?;
-                                    syn::parse::Parse::parse($input)#error?
-                                }
-                            );
+                            $parser.#ident = Some(IdentValue{
+                                value: if let Some(Some(__value)) = $is_flag.then(|| <#ty as ::attribute_derive::ConvertParsed>::as_flag()) {
+                                        __value
+                                    } else {
+                                        $input.step(|__cursor| match __cursor.punct() {
+                                            Some((__punct, __rest))
+                                                if __punct.as_char() == '=' && __punct.spacing() == proc_macro2::Spacing::Alone =>
+                                            {
+                                                Ok(((), __rest))
+                                            }
+                                            _ => Err(__cursor.error("expected assignment `=`")),
+                                        })?;
+                                        syn::parse::Parse::parse($input)#error?
+                                    },
+                                ident: $variable
+                            });
                         }
                     });
                 // }
@@ -531,14 +533,14 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 assignments.push(match optional{
                     Some(true) => {
                         quote! {
-                            #ident: $parser.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t)).unwrap_or_else(|| Ok(#default))?
+                            #ident: $parser.#ident.map(|t| ::attribute_derive::ConvertParsed::convert(t.value)).unwrap_or_else(|| Ok(#default))?
                         }
                     }
                     Some(false) => {
                         quote! {
                             # use ::attribute_derive::__private::{syn, proc_macro2};
                             # use ::attribute_derive::{ConvertParsed};
-                            #ident: match $parser.#ident.map(|t| ConvertParsed::convert(t)) {
+                            #ident: match $parser.#ident.map(|t| ConvertParsed::convert(t.value)) {
                                     Some(__option) => __option?,
                                     None if <#ty as ConvertParsed>::as_flag().is_some() => Err(syn::Error::new(proc_macro2::Span::call_site(), #flag_error))?,
                                     _ => Err(syn::Error::new(proc_macro2::Span::call_site(), #field_error))?,
@@ -549,7 +551,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                         quote! {
                             # use ::attribute_derive::__private::{syn, proc_macro2};
                             # use ::attribute_derive::{ConvertParsed};
-                            #ident: match $parser.#ident.map(|t| ConvertParsed::convert(t)) {
+                            #ident: match $parser.#ident.map(|t| ConvertParsed::convert(t.value)) {
                                     Some(__option) => __option?,
                                     None if <#ty as ConvertParsed>::default_by_default() => <#ty as ConvertParsed>::default(),
                                     _ => Err(syn::Error::new(proc_macro2::Span::call_site(), #field_error))?,
@@ -583,11 +585,11 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             # use ::attribute_derive::__private::proc_macro2;
             # use ::attribute_derive::__private::syn::{Error, Spanned};
             if let (Some($a), Some($b)) = (&$parser.#a, &$parser.#b) {
-                if let Some($joined_span) = $a.span().join($b.span()) {
+                if let Some($joined_span) = $a.ident.span().join($b.ident.span()) {
                     return Err(Error::new($joined_span, #error_a_to_b));
                 } else {
-                    let mut $error = Error::new_spanned(&$a, #error_a_to_b);
-                    $error.combine(Error::new_spanned(&$b, #error_b_to_a));
+                    let mut $error = Error::new_spanned(&$a.ident, #error_a_to_b);
+                    $error.combine(Error::new_spanned(&$b.ident, #error_b_to_a));
                     return Err($error);
                 }
             }
