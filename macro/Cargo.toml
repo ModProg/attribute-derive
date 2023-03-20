@@ -7,7 +7,7 @@ keywords = ["derive", "macro"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/ModProg/attribute-derive"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 name = "attribute-derive-macro"
 
@@ -20,7 +20,7 @@ proc-macro-error = "1"
 proc-macro2 = "1"
 quote = "1"
 quote-use = { version = "0.6", features = ["namespace_idents"] }
-syn = "1"
+syn = "2"
 proc-macro-utils = "0.5.1"
 # proc-macro-utils = {path = "../../proc-macro-utils"}
 interpolator = { version = "0.4.0", features = ["iter"] }

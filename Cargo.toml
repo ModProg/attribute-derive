@@ -8,7 +8,7 @@ license = "MIT"
 readme = "README.md"
 repository = "https://github.com/ModProg/attribute-derive"
 name = "attribute-derive"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 
 [lib]
@@ -16,14 +16,14 @@ edition = "2021"
 [dependencies]
 proc-macro2 = "1"
 quote = "1"
-syn =  "1"
+syn =  "2"
 
 [features]
 # default = ["syn-full"]
 syn-full = ["syn/full"]
 
 [dependencies.attribute-derive-macro]
-version = "0.5.0"
+version = "0.6.0"
 path = "macro"
 
 [workspace]

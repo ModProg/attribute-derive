@@ -149,13 +149,15 @@ impl StructAttrs {
         // let mut duplicate: DuplicateStrategy = DuplicateStrategy::AggregateOrError;
         for attr in attrs
             .into_iter()
-            .filter(|attr| attr.path.is_ident(ATTRIBUTE_IDENT))
+            .filter(|attr| attr.path().is_ident(ATTRIBUTE_IDENT))
         {
             let mut parser = attr
-                .tokens
-                .parser()
-                .next_parenthesized()
+                .meta
+                .require_list()
+                .ok()
                 .expect_or_abort(VALID_FORMAT)
+                .tokens
+                .clone()
                 .parser();
             while !parser.is_empty() {
                 let field = parser.next_ident().expect_or_abort(VALID_FORMAT);
@@ -272,13 +274,15 @@ impl FieldAttrs {
 
         for attr in attrs
             .into_iter()
-            .filter(|attr| attr.path.is_ident(ATTRIBUTE_IDENT))
+            .filter(|attr| attr.path().is_ident(ATTRIBUTE_IDENT))
         {
             let mut parser = attr
-                .tokens
-                .parser()
-                .next_parenthesized()
+                .meta
+                .require_list()
+                .ok()
                 .expect_or_abort(VALID_FORMAT)
+                .tokens
+                .clone()
                 .parser();
             while !parser.is_empty() {
                 let field = parser.next_ident().expect_or_abort(VALID_FORMAT);

@@ -144,28 +144,27 @@ use quote::ToTokens;
 use syn::parse::{Parse, Result};
 use syn::punctuated::Punctuated;
 use syn::token::{
-    Abstract, Add, AddEq, And, AndAnd, AndEq, As, Async, At, Auto, Await, Bang, Become, Break,
-    Caret, CaretEq, Colon, Colon2, Comma, Const, Continue, Crate, Div, DivEq, Do, Dollar, Dot,
-    Dot2, Dot3, DotDotEq, Dyn, Else, Enum, Eq, EqEq, Extern, FatArrow, Final, Fn, For, Ge, Gt, If,
-    Impl, In, LArrow, Le, Let, Loop, Lt, Match, Mod, Move, MulEq, Mut, Ne, Or, OrEq, OrOr,
-    Override, Pound, Priv, Pub, Question, RArrow, Ref, Rem, RemEq, Return, SelfType, SelfValue,
-    Semi, Shl, ShlEq, Shr, ShrEq, Star, Static, Struct, Sub, SubEq, Super, Tilde, Trait, Try,
-    Typeof, Underscore, Union, Unsafe, Unsized, Use, Virtual, Where, While, Yield,
+    Abstract, And, AndAnd, AndEq, As, Async, At, Auto, Await, Become, Break, Caret, CaretEq, Colon,
+    Comma, Const, Continue, Crate, Do, Dollar, Dot, DotDot, DotDotDot, DotDotEq, Dyn, Else, Enum,
+    Eq, EqEq, Extern, FatArrow, Final, Fn, For, Ge, Gt, If, Impl, In, LArrow, Le, Let, Loop, Lt,
+    Match, Minus, MinusEq, Mod, Move, Mut, Ne, Not, Or, OrEq, OrOr, Override, PathSep, Percent,
+    PercentEq, Plus, PlusEq, Pound, Priv, Pub, Question, RArrow, Ref, Return, SelfType, SelfValue,
+    Semi, Shl, ShlEq, Shr, ShrEq, Slash, SlashEq, Star, StarEq, Static, Struct, Super, Tilde,
+    Trait, Try, Typeof, Underscore, Union, Unsafe, Unsized, Use, Virtual, Where, While, Yield,
 };
 use syn::{
-    bracketed, parse2, parse_quote, Abi, AngleBracketedGenericArguments, BareFnArg, BinOp, Binding,
-    BoundLifetimes, ConstParam, Constraint, DeriveInput, Expr, ExprArray, ExprAssign, ExprAssignOp,
-    ExprAsync, ExprBinary, ExprBlock, ExprBox, ExprBreak, ExprCall, ExprCast, ExprClosure,
-    ExprContinue, ExprField, ExprForLoop, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMacro,
-    ExprMatch, ExprMethodCall, ExprParen, ExprPath, ExprRange, ExprReference, ExprRepeat,
-    ExprReturn, ExprStruct, ExprTry, ExprTryBlock, ExprTuple, ExprType, ExprUnary, ExprUnsafe,
-    ExprWhile, ExprYield, FieldsNamed, FieldsUnnamed, GenericArgument, GenericParam, Generics,
-    Ident, Index, Lifetime, LifetimeDef, Lit, LitBool, LitByteStr, LitChar, LitFloat, LitInt,
-    LitStr, Member, Meta, MetaList, MetaNameValue, NestedMeta, ParenthesizedGenericArguments, Path,
-    PathSegment, ReturnType, Token, TraitBound, TraitBoundModifier, Type, TypeArray, TypeBareFn,
-    TypeGroup, TypeImplTrait, TypeInfer, TypeMacro, TypeNever, TypeParam, TypeParamBound,
-    TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, UnOp,
-    Variant, Visibility, WhereClause, WherePredicate,
+    bracketed, parse2, parse_quote, Abi, AngleBracketedGenericArguments, BareFnArg, BinOp,
+    BoundLifetimes, ConstParam, Constraint, DeriveInput, Expr, ExprArray, ExprAssign, ExprAsync,
+    ExprBinary, ExprBlock, ExprBreak, ExprCall, ExprCast, ExprClosure, ExprContinue, ExprField,
+    ExprForLoop, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMacro, ExprMatch,
+    ExprMethodCall, ExprParen, ExprPath, ExprRange, ExprReference, ExprRepeat, ExprReturn,
+    ExprStruct, ExprTry, ExprTryBlock, ExprTuple, ExprUnary, ExprUnsafe, ExprWhile, ExprYield,
+    FieldsNamed, FieldsUnnamed, GenericArgument, GenericParam, Generics, Ident, Index, Lifetime,
+    Lit, LitBool, LitByteStr, LitChar, LitFloat, LitInt, LitStr, Member, Meta, MetaList,
+    MetaNameValue, ParenthesizedGenericArguments, Path, PathSegment, ReturnType, Token, TraitBound,
+    TraitBoundModifier, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeInfer,
+    TypeMacro, TypeNever, TypeParam, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference,
+    TypeSlice, TypeTraitObject, TypeTuple, UnOp, Variant, Visibility, WhereClause, WherePredicate,
 };
 
 #[doc(hidden)]
@@ -256,7 +255,7 @@ pub trait Attribute: Sized {
         attrs
             .into_iter()
             .filter_map(|attr| {
-                Self::is_ident(&attr.path).then(|| attr.parse_args::<Self::Parser>())
+                Self::is_ident(&attr.path()).then(|| attr.parse_args::<Self::Parser>())
             })
             .try_fold(Self::Parser::default(), |mut acc, item| {
                 acc.try_extend_one(item?)?;
@@ -295,7 +294,7 @@ pub trait Attribute: Sized {
         let mut parser: Self::Parser = Default::default();
         let mut i = 0;
         while i < attrs.len() {
-            if Self::is_ident(&attrs[i].path) {
+            if Self::is_ident(&attrs[i].path()) {
                 parser.try_extend_one(attrs.remove(i).parse_args()?)?;
             } else {
                 i += 1;
@@ -575,7 +574,7 @@ where
         let i = Punctuated::<T, Token!(,)>::parse_terminated(&content)?;
         Ok(Self {
             data: i.into_iter().collect(),
-            span: b.span,
+            span: b.span.join(),
         })
     }
 }
@@ -613,8 +612,8 @@ convert_parsed!(LitFloat => f32, f64:? LitFloat::base10_parse);
 convert_parsed![
     Abi,
     Abstract,
-    Add,
-    AddEq,
+    Plus,
+    PlusEq,
     And,
     AndAnd,
     AndEq,
@@ -624,17 +623,16 @@ convert_parsed![
     At,
     Auto,
     Await,
-    Bang,
+    Not,
     BareFnArg,
     Become,
     BinOp,
-    Binding,
     BoundLifetimes,
     Break,
     Caret,
     CaretEq,
     Colon,
-    Colon2,
+    PathSep,
     Comma,
     Const,
     ConstParam,
@@ -642,13 +640,13 @@ convert_parsed![
     Continue,
     Crate,
     DeriveInput,
-    Div,
-    DivEq,
+    Slash,
+    SlashEq,
     Do,
     Dollar,
     Dot,
-    Dot2,
-    Dot3,
+    DotDot,
+    DotDotDot,
     DotDotEq,
     Dyn,
     Else,
@@ -657,11 +655,9 @@ convert_parsed![
     EqEq,
     ExprArray,
     ExprAssign,
-    ExprAssignOp,
     ExprAsync,
     ExprBinary,
     ExprBlock,
-    ExprBox,
     ExprBreak,
     ExprCall,
     ExprCast,
@@ -687,7 +683,6 @@ convert_parsed![
     ExprTry,
     ExprTryBlock,
     ExprTuple,
-    ExprType,
     ExprUnary,
     ExprUnsafe,
     ExprWhile,
@@ -713,7 +708,6 @@ convert_parsed![
     Le,
     Let,
     Lifetime,
-    LifetimeDef,
     Loop,
     Lt,
     Match,
@@ -723,10 +717,9 @@ convert_parsed![
     MetaNameValue,
     Mod,
     Move,
-    MulEq,
+    StarEq,
     Mut,
     Ne,
-    NestedMeta,
     Or,
     OrEq,
     OrOr,
@@ -739,8 +732,8 @@ convert_parsed![
     Question,
     RArrow,
     Ref,
-    Rem,
-    RemEq,
+    Percent,
+    PercentEq,
     Return,
     ReturnType,
     SelfType,
@@ -753,8 +746,8 @@ convert_parsed![
     Star,
     Static,
     Struct,
-    Sub,
-    SubEq,
+    Minus,
+    MinusEq,
     Super,
     Tilde,
     Trait,
@@ -803,12 +796,11 @@ convert_parsed![
 mod syn_full {
     use syn::{
         Arm, Block, FieldValue, File, FnArg, ForeignItem, ForeignItemFn, ForeignItemMacro,
-        ForeignItemStatic, ForeignItemType, GenericMethodArgument, ImplItem, ImplItemConst,
-        ImplItemMacro, ImplItemMethod, ImplItemType, Item, ItemConst, ItemEnum, ItemExternCrate,
-        ItemFn, ItemForeignMod, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct,
-        ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Label, Pat, RangeLimits, Receiver,
-        Signature, Stmt, TraitItem, TraitItemConst, TraitItemMacro, TraitItemMethod, TraitItemType,
-        UseTree,
+        ForeignItemStatic, ForeignItemType, ImplItem, ImplItemConst, ImplItemMacro, ImplItemType,
+        Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemForeignMod, ItemImpl, ItemMacro,
+        ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse,
+        Label, Pat, RangeLimits, Receiver, Signature, Stmt, TraitItem, TraitItemConst,
+        TraitItemMacro, TraitItemType, UseTree,
     };
 
     use super::*;
@@ -824,11 +816,9 @@ mod syn_full {
         ForeignItemMacro,
         ForeignItemStatic,
         ForeignItemType,
-        GenericMethodArgument,
         ImplItem,
         ImplItemConst,
         ImplItemMacro,
-        ImplItemMethod,
         ImplItemType,
         Item,
         ItemConst,
@@ -838,7 +828,6 @@ mod syn_full {
         ItemForeignMod,
         ItemImpl,
         ItemMacro,
-        ItemMacro2,
         ItemMod,
         ItemStatic,
         ItemStruct,
@@ -856,7 +845,6 @@ mod syn_full {
         TraitItem,
         TraitItemConst,
         TraitItemMacro,
-        TraitItemMethod,
         TraitItemType,
         UseTree,
     ];
