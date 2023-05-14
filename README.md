@@ -4,7 +4,7 @@
 [![lib.rs](https://img.shields.io/crates/v/attribute-derive)](https://lib.rs/crates/attribute-derive)
 [![MIT](https://img.shields.io/crates/l/attribute-derive)](LICENSE)
 
-Basicly clap for attribute macros:
+Basically clap for attribute macros:
 ```rust
 #[derive(Attribute)]
 #[attribute(ident = "collection")]
