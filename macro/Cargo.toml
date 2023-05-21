@@ -19,9 +19,28 @@ proc-macro = true
 proc-macro-error = "1"
 proc-macro2 = "1"
 quote = "1"
-quote-use = { version = "0.6", features = ["namespace_idents"] }
+quote-use = { version = "0.7", features = ["namespace_idents"] }
 syn = "2"
-proc-macro-utils = "0.5.1"
+proc-macro-utils = "0.8.0"
 # proc-macro-utils = {path = "../../proc-macro-utils"}
-interpolator = { version = "0.4.0", features = ["iter"] }
+interpolator = { version = "0.5.0", features = ["iter"] }
 collection_literals = "1"
+
+[package.metadata.release]
+tag = false
+shared-version = true
+
+[[package.metadata.release.pre-release-replacements]]
+file = "CHANGELOG.md"
+search = '## \[Unreleased\]'
+replace = """
+<!-- ## [Unreleased] -->
+## [{{version}}] - {{date}}\
+"""
+[[package.metadata.release.pre-release-replacements]]
+file = "CHANGELOG.md"
+search = '\[unreleased\]: (.*)/(v.*)\.\.\.HEAD'
+replace = """
+[unreleased]: $1/{{tag_name}}...HEAD
+[{{version}}]: $1/$2...{{tag_name}}\
+"""

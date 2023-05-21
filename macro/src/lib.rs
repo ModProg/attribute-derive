@@ -163,7 +163,7 @@ impl StructAttrs {
                 let field = parser.next_ident().expect_or_abort(VALID_FORMAT);
                 match field.to_string().as_str() {
                     "ident" => {
-                        parser.next_eq().expect_or_abort(VALID_FORMAT);
+                        parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
                         ident = Some(
                             parser
                                 .next_ident()
@@ -172,13 +172,14 @@ impl StructAttrs {
                         )
                     }
                     "aliases" => {
-                        parser.next_eq().expect_or_abort(VALID_FORMAT);
+                        parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
                         let mut parser = parser
                             .next_bracketed()
                             .expect_or_abort(VALID_FORMAT)
+                            .stream()
                             .parser();
                         aliases.extend(iter::from_fn(|| {
-                            parser.next_comma();
+                            _ = parser.next_tt_comma();
                             parser.next_ident().map(|t| t.to_string())
                         }));
                         if !parser.is_empty() {
@@ -186,7 +187,7 @@ impl StructAttrs {
                         }
                     }
                     "error" => {
-                        if parser.next_eq().is_some() {
+                        if parser.next_tt_eq().is_some() {
                             error = StructError::Generic(
                                 parser.next_string().expect_or_abort(VALID_FORMAT),
                             );
@@ -194,6 +195,7 @@ impl StructAttrs {
                             let mut parser = parser
                                 .next_parenthesized()
                                 .expect_or_abort(VALID_FORMAT)
+                                .stream()
                                 .parser();
                             let error = if let StructError::Specific(error) = &mut error {
                                 error
@@ -208,7 +210,7 @@ impl StructAttrs {
                             while !parser.is_empty() {
                                 let field = parser.next_ident().expect_or_abort(VALID_FORMAT);
                                 let mut string = |f: &mut Cow<str>| {
-                                    parser.next_eq().expect_or_abort(VALID_FORMAT);
+                                    parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
                                     *f = parser.next_string().expect_or_abort(VALID_FORMAT).into()
                                 };
                                 match field.to_string().as_str() {
@@ -225,7 +227,7 @@ impl StructAttrs {
                                     "conflict" => string(&mut error.conflict),
                                     _ => abort!(field, VALID_FORMAT),
                                 }
-                                parser.next_comma();
+                                _ = parser.next_tt_comma();
                             }
                         }
                     }
@@ -242,7 +244,7 @@ impl StructAttrs {
                     // }
                     _ => abort!(field, VALID_FORMAT),
                 }
-                parser.next_comma();
+                _ = parser.next_tt_comma();
             }
         }
         Self {
@@ -288,19 +290,19 @@ impl FieldAttrs {
                 let field = parser.next_ident().expect_or_abort(VALID_FORMAT);
                 match field.to_string().as_str() {
                     "optional" => {
-                        if parser.next_eq().is_some() {
+                        if parser.next_tt_eq().is_some() {
                             optional = Some(parser.next_bool().expect_or_abort(VALID_FORMAT))
                         } else {
                             optional = Some(true)
                         }
                     }
                     "default" => {
-                        parser.next_eq().expect_or_abort(VALID_FORMAT);
+                        parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
                         default = Some(parser.next_expression().expect_or_abort(VALID_FORMAT));
                         optional = optional.or(Some(true));
                     }
                     "example" => {
-                        parser.next_eq().expect_or_abort(VALID_FORMAT);
+                        parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
                         // panic!("{:?}", parser.next_string());
                         example = Some(parser.next_string().expect_or_abort(VALID_FORMAT));
                     }
@@ -309,13 +311,14 @@ impl FieldAttrs {
                     //     aggregate &= parser.next_bool().expect_or_abort(VALID_FORMAT);
                     // }
                     "conflicts" => {
-                        parser.next_eq().expect_or_abort(VALID_FORMAT);
+                        parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
                         let mut parser = parser
                             .next_bracketed()
                             .expect_or_abort(VALID_FORMAT)
+                            .stream()
                             .parser();
                         conflicts.extend(iter::from_fn(|| {
-                            parser.next_comma();
+                            _ = parser.next_tt_comma();
                             parser.next_ident()
                         }));
                         if !parser.is_empty() {
@@ -324,7 +327,7 @@ impl FieldAttrs {
                     }
                     _ => abort!(field, VALID_FORMAT),
                 }
-                parser.next_comma();
+                _ = parser.next_tt_comma();
             }
         }
         Self {
