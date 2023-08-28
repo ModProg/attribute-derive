@@ -1,12 +1,13 @@
 use attribute_derive::Attribute;
-use proc_macro2::TokenStream;
-use quote::quote;
-use syn::{parse2, parse_quote};
+use syn::parse_quote;
 
 #[cfg(feature = "syn-full")]
 #[test]
 fn test() {
-    use syn::{Expr, LitStr, Type};
+    use proc_macro2::TokenStream;
+    use quote::quote;
+    use syn::{parse2, Expr, LitStr, Type};
+
     #[derive(Attribute)]
     #[attribute(ident = test)]
     struct Test {

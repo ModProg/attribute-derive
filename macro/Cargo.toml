@@ -16,7 +16,6 @@ proc-macro = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-proc-macro-error = "1"
 proc-macro2 = "1"
 quote = "1"
 quote-use = { version = "0.7", features = ["namespace_idents"] }
@@ -25,6 +24,7 @@ proc-macro-utils = "0.8.0"
 # proc-macro-utils = {path = "../../proc-macro-utils"}
 interpolator = { version = "0.5.0", features = ["iter"] }
 collection_literals = "1"
+manyhow = "0.4"
 
 [package.metadata.release]
 tag = false

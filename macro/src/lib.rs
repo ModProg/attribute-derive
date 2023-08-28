@@ -4,13 +4,13 @@ use std::iter;
 
 use collection_literals::hash;
 use interpolator::{format, Formattable};
+use manyhow::{bail, error_message, manyhow, ErrorMessage, Result};
 use proc_macro2::TokenStream;
-use proc_macro_error::{abort, abort_call_site, proc_macro_error, OptionExt};
 use proc_macro_utils::TokenStream2Ext;
 use quote::{format_ident, ToTokens};
 use quote_use::quote_use as quote;
 use syn::punctuated::Punctuated;
-use syn::{parse_macro_input, DataStruct, DeriveInput, Field, Fields, FieldsNamed, Ident, Token};
+use syn::{DataStruct, DeriveInput, Field, Fields, FieldsNamed, Ident, Token};
 
 const ATTRIBUTE_IDENT: &str = "attribute";
 
@@ -141,7 +141,7 @@ struct StructAttrs {
 }
 
 impl StructAttrs {
-    fn from_attrs(attrs: impl IntoIterator<Item = syn::Attribute>) -> Self {
+    fn from_attrs(attrs: impl IntoIterator<Item = syn::Attribute>) -> Result<Self> {
         const VALID_FORMAT: &str = r#"expected `#[attribute(ident=attribute_name, aliases=[alias1, alias2], error="..", error(unknown_field="..", unknown_field_single="..", unknown_field_empty="..", duplicate_field="..", missing_field="..", field_help="..", missing_flag"..", flag_help".."))]`"#;
         let mut ident: Option<String> = None;
         let mut aliases: Vec<String> = vec![];
@@ -154,28 +154,33 @@ impl StructAttrs {
             let mut parser = attr
                 .meta
                 .require_list()
-                .ok()
-                .expect_or_abort(VALID_FORMAT)
+                .map_err(|_| ErrorMessage::call_site(VALID_FORMAT))?
                 .tokens
                 .clone()
                 .parser();
             while !parser.is_empty() {
-                let field = parser.next_ident().expect_or_abort(VALID_FORMAT);
+                let field = parser
+                    .next_ident()
+                    .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
                 match field.to_string().as_str() {
                     "ident" => {
-                        parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
+                        parser
+                            .next_tt_eq()
+                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
                         ident = Some(
                             parser
                                 .next_ident()
-                                .expect_or_abort(VALID_FORMAT)
+                                .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?
                                 .to_string(),
                         )
                     }
                     "aliases" => {
-                        parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
+                        parser
+                            .next_tt_eq()
+                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
                         let mut parser = parser
                             .next_bracketed()
-                            .expect_or_abort(VALID_FORMAT)
+                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?
                             .stream()
                             .parser();
                         aliases.extend(iter::from_fn(|| {
@@ -183,18 +188,20 @@ impl StructAttrs {
                             parser.next_ident().map(|t| t.to_string())
                         }));
                         if !parser.is_empty() {
-                            abort_call_site!(VALID_FORMAT)
+                            bail!("{VALID_FORMAT}")
                         }
                     }
                     "error" => {
                         if parser.next_tt_eq().is_some() {
                             error = StructError::Generic(
-                                parser.next_string().expect_or_abort(VALID_FORMAT),
+                                parser
+                                    .next_string()
+                                    .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?,
                             );
                         } else {
                             let mut parser = parser
                                 .next_parenthesized()
-                                .expect_or_abort(VALID_FORMAT)
+                                .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?
                                 .stream()
                                 .parser();
                             let error = if let StructError::Specific(error) = &mut error {
@@ -208,10 +215,18 @@ impl StructAttrs {
                                 }
                             };
                             while !parser.is_empty() {
-                                let field = parser.next_ident().expect_or_abort(VALID_FORMAT);
-                                let mut string = |f: &mut Cow<str>| {
-                                    parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
-                                    *f = parser.next_string().expect_or_abort(VALID_FORMAT).into()
+                                let field = parser
+                                    .next_ident()
+                                    .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
+                                let mut string = |f: &mut Cow<str>| -> Result<()> {
+                                    parser
+                                        .next_tt_eq()
+                                        .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
+                                    *f = parser
+                                        .next_string()
+                                        .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?
+                                        .into();
+                                    Ok(())
                                 };
                                 match field.to_string().as_str() {
                                     "unknown_field" => string(&mut error.unknown_field),
@@ -225,16 +240,18 @@ impl StructAttrs {
                                     "missing_flag" => string(&mut error.missing_flag),
                                     "flag_help" => string(&mut error.flag_help),
                                     "conflict" => string(&mut error.conflict),
-                                    _ => abort!(field, VALID_FORMAT),
-                                }
+                                    _ => bail!(field, "{VALID_FORMAT}"),
+                                }?;
                                 _ = parser.next_tt_comma();
                             }
                         }
                     }
                     // "duplicate" => {
-                    //     parser.next_eq().expect_or_abort(VALID_FORMAT);
-                    //     let strategy = parser.next_ident().expect_or_abort(VALID_FORMAT);
-                    //     duplicate = match strategy.to_string().as_str() {
+                    //     parser.next_eq()                                .ok_or_else(||
+                    // ErrorMessage::call_site(VALID_FORMAT))?;     let strategy
+                    // = parser.next_ident()                                .ok_or_else(||
+                    // ErrorMessage::call_site(VALID_FORMAT))?;     duplicate =
+                    // match strategy.to_string().as_str() {
                     //         "AggregateOrError" => DuplicateStrategy::AggregateOrError,
                     //         "Error" => DuplicateStrategy::Error,
                     //         "AggregateOrOverride" => DuplicateStrategy::AggregateOrOverride,
@@ -242,17 +259,17 @@ impl StructAttrs {
                     //         _ => abort!(strategy, VALID_FORMAT),
                     //     }
                     // }
-                    _ => abort!(field, VALID_FORMAT),
+                    _ => bail!(field, "{VALID_FORMAT}"),
                 }
                 _ = parser.next_tt_comma();
             }
         }
-        Self {
+        Ok(Self {
             ident,
             aliases,
             error,
             // duplicate,
-        }
+        })
     }
 }
 
@@ -265,7 +282,7 @@ struct FieldAttrs {
 }
 
 impl FieldAttrs {
-    fn from_attrs(attrs: impl IntoIterator<Item = syn::Attribute>) -> Self {
+    fn from_attrs(attrs: impl IntoIterator<Item = syn::Attribute>) -> Result<Self> {
         const VALID_FORMAT: &str = r#"expected `#[attribute(optional, optional=true, default=1+5, conflicts=[a, b], example="22")]`"#;
 
         let mut optional: Option<bool> = None;
@@ -282,39 +299,60 @@ impl FieldAttrs {
                 .meta
                 .require_list()
                 .ok()
-                .expect_or_abort(VALID_FORMAT)
+                .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?
                 .tokens
                 .clone()
                 .parser();
             while !parser.is_empty() {
-                let field = parser.next_ident().expect_or_abort(VALID_FORMAT);
+                let field = parser
+                    .next_ident()
+                    .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
                 match field.to_string().as_str() {
                     "optional" => {
                         if parser.next_tt_eq().is_some() {
-                            optional = Some(parser.next_bool().expect_or_abort(VALID_FORMAT))
+                            optional = Some(
+                                parser
+                                    .next_bool()
+                                    .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?,
+                            )
                         } else {
                             optional = Some(true)
                         }
                     }
                     "default" => {
-                        parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
-                        default = Some(parser.next_expression().expect_or_abort(VALID_FORMAT));
+                        parser
+                            .next_tt_eq()
+                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
+                        default = Some(
+                            parser
+                                .next_expression()
+                                .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?,
+                        );
                         optional = optional.or(Some(true));
                     }
                     "example" => {
-                        parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
+                        parser
+                            .next_tt_eq()
+                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
                         // panic!("{:?}", parser.next_string());
-                        example = Some(parser.next_string().expect_or_abort(VALID_FORMAT));
+                        example = Some(
+                            parser
+                                .next_string()
+                                .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?,
+                        );
                     }
                     // "aggregate" => {
-                    //     parser.next_eq().expect_or_abort(VALID_FORMAT);
-                    //     aggregate &= parser.next_bool().expect_or_abort(VALID_FORMAT);
-                    // }
+                    //     parser.next_eq()                                .ok_or_else(||
+                    // ErrorMessage::call_site(VALID_FORMAT))?;     aggregate &=
+                    // parser.next_bool()                                .ok_or_else(||
+                    // ErrorMessage::call_site(VALID_FORMAT))?; }
                     "conflicts" => {
-                        parser.next_tt_eq().expect_or_abort(VALID_FORMAT);
+                        parser
+                            .next_tt_eq()
+                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
                         let mut parser = parser
                             .next_bracketed()
-                            .expect_or_abort(VALID_FORMAT)
+                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?
                             .stream()
                             .parser();
                         conflicts.extend(iter::from_fn(|| {
@@ -322,35 +360,35 @@ impl FieldAttrs {
                             parser.next_ident()
                         }));
                         if !parser.is_empty() {
-                            abort_call_site!(VALID_FORMAT)
+                            bail!("{VALID_FORMAT}")
                         }
                     }
-                    _ => abort!(field, VALID_FORMAT),
+                    _ => bail!(field, "{VALID_FORMAT}"),
                 }
                 _ = parser.next_tt_comma();
             }
         }
-        Self {
+        Ok(Self {
             optional,
             default,
             // aggregate,
             conflicts,
             example,
-        }
+        })
     }
 }
 // TODO generally should use fully qualified names for trait function calls
 
-#[proc_macro_error]
+#[manyhow]
 #[proc_macro_derive(Attribute, attributes(attribute))]
-pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn attribute_derive(input: proc_macro::TokenStream) -> Result {
     let DeriveInput {
         attrs,
         ident,
         generics,
         data,
         ..
-    } = parse_macro_input!(input as DeriveInput);
+    } = syn::parse(input)?;
 
     let parser_ident = format_ident!("{ident}__Parser");
 
@@ -359,7 +397,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
         mut aliases,
         error: struct_error,
         // duplicate,
-    } = StructAttrs::from_attrs(attrs);
+    } = StructAttrs::from_attrs(attrs)?;
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
@@ -406,7 +444,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                     // aggregate,
                     conflicts: field_conflicts,
                     example,
-                } = FieldAttrs::from_attrs(attrs);
+                } = FieldAttrs::from_attrs(attrs)?;
 
                 for conflict in field_conflicts {
                     if conflict < ident {
@@ -423,8 +461,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                     struct_error.duplicate_field(),
                     &hash!("field" => Formattable::display(&ident)),
                 )
-                .ok()
-                .expect_or_abort("Invalid format string for `duplicate_field`");
+                .map_err(|_| error_message!("Invalid format string for `duplicate_field`"))?;
                 option_assignments.push(quote! {
                     self.#ident = <#ty as ::attribute_derive::ConvertParsed>::aggregate(self.#ident.take(), $other.#ident, #error)?;
                 });
@@ -440,9 +477,9 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                         }
                         Some(format!(
                             "\n\n= help: {}",
-                            format(help, &context)
-                                .ok()
-                                .expect_or_abort("Invalid format string for `field_help`")
+                            format(help, &context).map_err(|_| error_message!(
+                                "Invalid format string for `field_help`"
+                            ))?
                         ))
                     }
                 } else {
@@ -500,8 +537,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                     struct_error.missing_field(),
                     &hash!("field" => Formattable::display(&ident)),
                 )
-                .ok()
-                .expect_or_abort("Invalid format string for `missing_field`")
+                .map_err(|_| error_message!("Invalid format string for `missing_field`"))?
                     + &field_help.unwrap_or_default();
 
                 let flag_help = if let Some(help) = struct_error.flag_help() {
@@ -514,9 +550,9 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                         }
                         Some(format!(
                             "\n\n= help: {}",
-                            format(help, &context)
-                                .ok()
-                                .expect_or_abort("Invalid format string for `field_help`")
+                            format(help, &context).map_err(|_| error_message!(
+                                "Invalid format string for `field_help`"
+                            ))?
                         ))
                     }
                 } else {
@@ -527,8 +563,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                     struct_error.missing_flag(),
                     &hash!("flag" => Formattable::display(&ident)),
                 )
-                .ok()
-                .expect_or_abort("Invalid format string for `flag_error`")
+                .map_err(|_| error_message!("Invalid format string for `flag_error`"))?
                     + &flag_help.unwrap_or_default();
 
                 let default = if let Some(default) = default {
@@ -570,38 +605,39 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 possible_variables.push(ident);
             }
         }
-        _ => abort_call_site!("only works on structs with named fields"),
+        _ => bail!("only works on structs with named fields"),
     };
 
-    let verification = conflicts.into_iter().map(|(a, b)| {
-        let af = Formattable::display(&a);
-        let bf = Formattable::display(&b);
-        let error_a_to_b = format(
-            struct_error.conflict(),
-            &hash!("first" => af, "second" => bf),
-        )
-        .ok()
-        .expect_or_abort("Invalid format string for `conflict`");
-        let error_b_to_a = format(
-            struct_error.conflict(),
-            &hash!("first" => bf, "second" => af),
-        )
-        .ok()
-        .expect_or_abort("Invalid format string for `conflict`");
-        quote! {
-            # use ::attribute_derive::__private::proc_macro2;
-            # use ::attribute_derive::__private::syn::{Error, Spanned};
-            if let (Some($a), Some($b)) = (&$parser.#a, &$parser.#b) {
-                if let Some($joined_span) = $a.ident.span().join($b.ident.span()) {
-                    return Err(Error::new($joined_span, #error_a_to_b));
-                } else {
-                    let mut $error = Error::new_spanned(&$a.ident, #error_a_to_b);
-                    $error.combine(Error::new_spanned(&$b.ident, #error_b_to_a));
-                    return Err($error);
+    let verification = conflicts
+        .into_iter()
+        .map(|(a, b)| {
+            let af = Formattable::display(&a);
+            let bf = Formattable::display(&b);
+            let error_a_to_b = format(
+                struct_error.conflict(),
+                &hash!("first" => af, "second" => bf),
+            )
+            .map_err(|_| error_message!("Invalid format string for `conflict`"))?;
+            let error_b_to_a = format(
+                struct_error.conflict(),
+                &hash!("first" => bf, "second" => af),
+            )
+            .map_err(|_| error_message!("Invalid format string for `conflict`"))?;
+            Ok(quote! {
+                # use ::attribute_derive::__private::proc_macro2;
+                # use ::attribute_derive::__private::syn::{Error, Spanned};
+                if let (Some($a), Some($b)) = (&$parser.#a, &$parser.#b) {
+                    if let Some($joined_span) = $a.ident.span().join($b.ident.span()) {
+                        return Err(Error::new($joined_span, #error_a_to_b));
+                    } else {
+                        let mut $error = Error::new_spanned(&$a.ident, #error_a_to_b);
+                        $error.combine(Error::new_spanned(&$b.ident, #error_b_to_a));
+                        return Err($error);
+                    }
                 }
-            }
-        }
-    });
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
 
     let found_field = Formattable::display(&"{found_field}");
     let error_invalid_name = match possible_variables.len() {
@@ -610,19 +646,17 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
             struct_error.unknown_field_single(),
             &hash!("expected_field" => Formattable::display(&possible_variables[0]), "found_field" => found_field),
         )
-        .ok()
-        .expect_or_abort("Invalid format string for `unknown_field_single"),
+        .map_err(|_| error_message!("Invalid format string for `unknown_field_single"))?,
         _ => {
             let possible_variables: Vec<_> = possible_variables.iter().map(Formattable::display).collect();
             format(
             struct_error.unknown_field(),
             &hash!("expected_fields" => Formattable::iter(&possible_variables), "found_field" => found_field),
         )
-            .ok()
-            .expect_or_abort("Invalid format string for `unknown_field_single")},
+            .map_err(|_|error_message!("Invalid format string for `unknown_field_single"))?},
     };
 
-    quote! {
+    Ok(quote! {
         # use ::attribute_derive::__private::{syn::{self, Result, Ident, Token, parse::{Parse, ParseStream}}, proc_macro2};
         # use ::attribute_derive::TryExtendOne;
 
@@ -699,6 +733,5 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStre
                 Parse::parse($input).and_then(Self::from_parser)
             }
         }
-    }
-    .into()
+    })
 }

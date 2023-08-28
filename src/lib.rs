@@ -255,7 +255,7 @@ pub trait Attribute: Sized {
         attrs
             .into_iter()
             .filter_map(|attr| {
-                Self::is_ident(&attr.path()).then(|| attr.parse_args::<Self::Parser>())
+                Self::is_ident(attr.path()).then(|| attr.parse_args::<Self::Parser>())
             })
             .try_fold(Self::Parser::default(), |mut acc, item| {
                 acc.try_extend_one(item?)?;
@@ -294,7 +294,7 @@ pub trait Attribute: Sized {
         let mut parser: Self::Parser = Default::default();
         let mut i = 0;
         while i < attrs.len() {
-            if Self::is_ident(&attrs[i].path()) {
+            if Self::is_ident(attrs[i].path()) {
                 parser.try_extend_one(attrs.remove(i).parse_args()?)?;
             } else {
                 i += 1;
