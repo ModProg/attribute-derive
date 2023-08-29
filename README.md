@@ -6,22 +6,23 @@
 
 Basically clap for attribute macros:
 ```rust
+use attribute_derive::Attribute;
+use syn::Type;
+
 #[derive(Attribute)]
-#[attribute(ident = "collection")]
-#[attribute(invalid_field = "Error when an unsupported value is set (e.g. meaning=42")]
+#[attribute(ident = collection)]
+#[attribute(error(missing_field = "`{field}` was not specified"))]
 struct CollectionAttribute {
     // Options are optional by default (will be set to None if not specified)
     authority: Option<String>,
-    #[attribute(missing = "Error when the value is not set")]
     name: String,
     // Any type implementing default can be flagged as default
     // This will be set to Vec::default() when not specified
-    #[attribute(default)]
-    #[attribute(expected = "Error when an error occured while parsing")]
+    #[attribute(optional)]
     views: Vec<Type>,
-    // Booleans can be used without assiging a value. as a flag.
+    // Booleans can be used without assigning a value, i.e., as a flag.
     // If omitted they are set to false
-    some_flag
+    some_flag: bool,
 }
 ```
 

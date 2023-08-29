@@ -13,7 +13,7 @@
 //!     // This will be set to Vec::default() when not specified
 //!     #[attribute(optional)]
 //!     views: Vec<Type>,
-//!     // Booleans can be used without assiging a value. as a flag.
+//!     // Booleans can be used without assigning a value, i.e., as a flag.
 //!     // If omitted they are set to false
 //!     some_flag: bool,
 //! }
