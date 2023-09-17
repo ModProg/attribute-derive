@@ -3,7 +3,7 @@
 [![docs.rs](https://img.shields.io/docsrs/attribute-derive)](https://docs.rs/attribute-derive/latest/attribute_derive/)
 [![lib.rs](https://img.shields.io/crates/v/attribute-derive)](https://lib.rs/crates/attribute-derive)
 [![MIT](https://img.shields.io/crates/l/attribute-derive)](LICENSE)
-[![Documentation for `main`](https://img.shields.io/badge/docs-main-informational)](https://modprog.github.io/attribute-derive/attribute-derive/)
+[![Documentation for `main`](https://img.shields.io/badge/docs-main-informational)](https://modprog.github.io/attribute-derive/attribute_derive/)
 
 Basically clap for attribute macros:
 ```rust
