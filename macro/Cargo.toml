@@ -7,7 +7,7 @@ keywords = ["derive", "macro"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/ModProg/attribute-derive"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 name = "attribute-derive-macro"
 
