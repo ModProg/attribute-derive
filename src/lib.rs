@@ -135,7 +135,7 @@
 //!
 //! [interpolator]: https://docs.rs/interpolator/latest/interpolator/
 #![deny(missing_docs)]
-use std::fmt::{Display, Debug};
+use std::fmt::{Debug, Display};
 
 #[doc(hidden)]
 pub use attribute_derive_macro::Attribute;
@@ -444,16 +444,42 @@ pub enum FlagOrValue<T: ConvertParsed> {
     Value(T),
 }
 
-impl<T: ConvertParsed+Debug> ConvertParsed for FlagOrValue<T>
+mod internal {
+    use proc_macro2::TokenStream;
+    use quote::ToTokens;
+    use syn::parse::Parse;
+
+    pub enum FlagOrType<T> {
+        Flag,
+        Type(T),
+    }
+    impl<T: ToTokens> ToTokens for FlagOrType<T> {
+        fn to_tokens(&self, tokens: &mut TokenStream) {
+            if let Self::Type(t) = self {
+                t.to_tokens(tokens);
+            }
+        }
+    }
+
+    impl<T: Parse> Parse for FlagOrType<T> {
+        fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+            input.parse().map(Self::Type)
+        }
+    }
+}
+use internal::FlagOrType;
+
+impl<T: ConvertParsed + Debug> ConvertParsed for FlagOrValue<T>
 where
     T::Type: ToTokens,
 {
-    type Type = Option<T::Type>;
+    type Type = FlagOrType<T::Type>;
 
     fn convert(value: Self::Type) -> Result<Self> {
-        value
-            .map(|value| T::convert(value).map(Self::Value))
-            .unwrap_or(Ok(Self::Flag))
+        Ok(match value {
+            FlagOrType::Flag => Self::Flag,
+            FlagOrType::Type(v) => Self::Value(T::convert(v)?),
+        })
     }
 
     fn default_by_default() -> bool {
@@ -465,7 +491,7 @@ where
     }
 
     fn as_flag() -> Option<Self::Type> {
-        Some(None)
+        Some(FlagOrType::Flag)
     }
 
     fn aggregate(
@@ -474,15 +500,29 @@ where
         error_msg: &str,
     ) -> Result<Option<IdentValue<Self::Type>>> {
         match (this, other) {
-            (None | Some(IdentValue { value: None, .. }), value) => Ok(value),
-            (value, None | Some(IdentValue { value: None, .. })) => Ok(value),
+            (
+                None
+                | Some(IdentValue {
+                    value: FlagOrType::Flag,
+                    ..
+                }),
+                value,
+            ) => Ok(value),
+            (
+                value,
+                None
+                | Some(IdentValue {
+                    value: FlagOrType::Flag,
+                    ..
+                }),
+            ) => Ok(value),
             (
                 Some(IdentValue {
-                    value: Some(this_value),
+                    value: FlagOrType::Type(this_value),
                     ident: this_ident,
                 }),
                 Some(IdentValue {
-                    value: Some(other_value),
+                    value: FlagOrType::Type(other_value),
                     ident: other_ident,
                 }),
             ) => T::aggregate(
@@ -498,7 +538,7 @@ where
             )
             .map(|o| {
                 o.map(|IdentValue { value, ident }| IdentValue {
-                    value: Some(value),
+                    value: FlagOrType::Type(value),
                     ident,
                 })
             }),
