@@ -116,12 +116,12 @@ fn aggregate() {
 
     assert_eq!(
         Test::from_attributes(&[
-            parse_quote!(#[test(strings=["a"])]),
-            parse_quote!(#[test(strings=["b"])])
+            parse_quote!(#[test(strings=["a"], strings=["b"])]),
+            parse_quote!(#[test(strings=["c"])])
         ])
         .unwrap()
         .strings,
-        vec!["a".to_owned(), "b".to_owned()]
+        ["a", "b", "c"].map(ToOwned::to_owned)
     )
 }
 

@@ -4,8 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
 - Updated dependencies
+
+### Added
+- Added `FlagOrValue` to support a value both as a Flag and a Value
+
+### Changed
+- `bool` now allows specifying a flag multiple times.
+
+### Fixed
+- Specifying a param multiple times in the same attribute was ignored.
 
 ## [0.6.1] - 2023-05-21
 - Updated dependencies

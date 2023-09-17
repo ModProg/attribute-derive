@@ -135,7 +135,7 @@
 //!
 //! [interpolator]: https://docs.rs/interpolator/latest/interpolator/
 #![deny(missing_docs)]
-use std::fmt::Display;
+use std::fmt::{Display, Debug};
 
 #[doc(hidden)]
 pub use attribute_derive_macro::Attribute;
@@ -408,6 +408,104 @@ where
     }
 }
 
+/// [`Attribute`] value that can be used both as a flag and with a value.
+/// ```
+/// # use attribute_derive::{Attribute, FlagOrValue};
+/// # use quote::quote;
+/// #[derive(Attribute)]
+/// struct Test {
+///     param: FlagOrValue<String>,
+/// }
+///
+/// assert_eq!(
+///     Test::from_args(quote!(param)).unwrap().param,
+///     FlagOrValue::Flag
+/// );
+/// assert_eq!(
+///     Test::from_args(quote!(param = "value")).unwrap().param,
+///     FlagOrValue::Value("value".into())
+/// );
+/// assert_eq!(
+///     Test::from_args(quote!(param, param = "value", param))
+///         .unwrap()
+///         .param,
+///     FlagOrValue::Value("value".into())
+/// );
+/// assert_eq!(Test::from_args(quote!()).unwrap().param, FlagOrValue::None);
+/// ```
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FlagOrValue<T: ConvertParsed> {
+    /// Was not specified.
+    #[default]
+    None,
+    /// Was specified as a flag, i.e., without a value.
+    Flag,
+    /// Was specified with a value.
+    Value(T),
+}
+
+impl<T: ConvertParsed+Debug> ConvertParsed for FlagOrValue<T>
+where
+    T::Type: ToTokens,
+{
+    type Type = Option<T::Type>;
+
+    fn convert(value: Self::Type) -> Result<Self> {
+        value
+            .map(|value| T::convert(value).map(Self::Value))
+            .unwrap_or(Ok(Self::Flag))
+    }
+
+    fn default_by_default() -> bool {
+        true
+    }
+
+    fn default() -> Self {
+        Self::None
+    }
+
+    fn as_flag() -> Option<Self::Type> {
+        Some(None)
+    }
+
+    fn aggregate(
+        this: Option<IdentValue<Self::Type>>,
+        other: Option<IdentValue<Self::Type>>,
+        error_msg: &str,
+    ) -> Result<Option<IdentValue<Self::Type>>> {
+        match (this, other) {
+            (None | Some(IdentValue { value: None, .. }), value) => Ok(value),
+            (value, None | Some(IdentValue { value: None, .. })) => Ok(value),
+            (
+                Some(IdentValue {
+                    value: Some(this_value),
+                    ident: this_ident,
+                }),
+                Some(IdentValue {
+                    value: Some(other_value),
+                    ident: other_ident,
+                }),
+            ) => T::aggregate(
+                Some(IdentValue {
+                    value: this_value,
+                    ident: this_ident,
+                }),
+                Some(IdentValue {
+                    value: other_value,
+                    ident: other_ident,
+                }),
+                error_msg,
+            )
+            .map(|o| {
+                o.map(|IdentValue { value, ident }| IdentValue {
+                    value: Some(value),
+                    ident,
+                })
+            }),
+        }
+    }
+}
+
 /// Helper trait to generate sensible errors
 pub trait Error {
     /// This is used to be able to create errors more easily. Mostly used
@@ -424,6 +522,11 @@ where
     }
 }
 
+// impl<T: Error> Error for Option<T> {
+//
+// }
+
+#[derive(Debug, PartialEq, Eq)]
 /// Helper struct to hold a value and the ident of its property
 pub struct IdentValue<T> {
     /// The value
@@ -553,6 +656,14 @@ impl ConvertParsed for bool {
 
     fn as_flag() -> Option<Self::Type> {
         Some(parse_quote!(true))
+    }
+
+    fn aggregate(
+        this: Option<IdentValue<Self::Type>>,
+        other: Option<IdentValue<Self::Type>>,
+        _error_msg: &str,
+    ) -> Result<Option<IdentValue<Self::Type>>> {
+        Ok(this.or(other))
     }
 }
 

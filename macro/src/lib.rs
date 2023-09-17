@@ -457,13 +457,13 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> Result {
                 options_ty
                     .push(quote!(#ident: Option<::attribute_derive::IdentValue<<#ty as ::attribute_derive::ConvertParsed>::Type>>));
 
-                let error = format(
+                let duplicate_error = format(
                     struct_error.duplicate_field(),
                     &hash!("field" => Formattable::display(&ident)),
                 )
                 .map_err(|_| error_message!("Invalid format string for `duplicate_field`"))?;
                 option_assignments.push(quote! {
-                    self.#ident = <#ty as ::attribute_derive::ConvertParsed>::aggregate(self.#ident.take(), $other.#ident, #error)?;
+                    self.#ident = <#ty as ::attribute_derive::ConvertParsed>::aggregate(self.#ident.take(), $other.#ident, #duplicate_error)?;
                 });
 
                 let field_help = if let Some(help) = struct_error.field_help() {
@@ -512,10 +512,10 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> Result {
                 // } else {
                 parsing.push(quote! {
                         # use ::attribute_derive::__private::{syn, proc_macro2};
-                        # use ::attribute_derive::IdentValue;
+                        # use ::attribute_derive::{IdentValue, ConvertParsed};
                         #ident_str => {
-                            $parser.#ident = Some(IdentValue{
-                                value: if let Some(Some(__value)) = $is_flag.then(|| <#ty as ::attribute_derive::ConvertParsed>::as_flag()) {
+                            $parser.#ident = <#ty as ConvertParsed>::aggregate($parser.#ident, Some(IdentValue{
+                                value: if let Some(Some(__value)) = $is_flag.then(|| <#ty as ConvertParsed>::as_flag()) {
                                         __value
                                     } else {
                                         $input.step(|__cursor| match __cursor.punct() {
@@ -529,7 +529,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> Result {
                                         syn::parse::Parse::parse($input)#error?
                                     },
                                 ident: $variable
-                            });
+                            }), #duplicate_error)?;
                         }
                     });
                 // }
