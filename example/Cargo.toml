@@ -12,5 +12,8 @@ attribute-derive = { path = "..", features = ["syn-full"] }
 syn = { version = "2", features = ["full", "extra-traits"] }
 trybuild = "1"
 
+[dev-dependencies]
+rustversion = "1.0.14"
+
 [package.metadata.release]
 release = false
