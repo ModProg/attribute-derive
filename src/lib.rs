@@ -1,8 +1,8 @@
 //! Basicly clap for attribute macros:
 //! ```
-//! # use attribute_derive::Attribute;
+//! # use attribute_derive::FromAttr;
 //! # use syn::Type;
-//! #[derive(Attribute)]
+//! #[derive(FromAttr)]
 //! #[attribute(ident = collection)]
 //! #[attribute(error(missing_field = "`{field}` was not specified"))]
 //! struct CollectionAttribute {
@@ -43,8 +43,8 @@
 //! ### Struct
 //!
 //! - `ident = <ident>` The attribute ident. Improves error messages and enables
-//!   the [`from_attributes`](Attribute::from_attributes) and
-//!   [`remove_attributes`](Attribute::remove_attributes) functions.
+//!   the [`from_attributes`](FromAttr::from_attributes) and
+//!   [`remove_attributes`](FromAttr::remove_attributes) functions.
 //! - `aliases = [<alias>, ...]` Aliases for the attribute ident.
 //! - `error = "<error message>"` Overrides default error message.
 //! - `error(`
@@ -111,24 +111,24 @@
 //!
 //! # Parse methods
 //!
-//! There are multiple ways of parsing a struct deriving [`Attribute`].
+//! There are multiple ways of parsing a struct deriving [`FromAttr`].
 //!
 //! For helper attributes there is:
-//! - [`Attribute::from_attributes`] which takes in an [`IntoIterator<Item = &'a
+//! - [`FromAttr::from_attributes`] which takes in an [`IntoIterator<Item = &'a
 //! syn::Attribute`](syn::Attribute)
 //! (e.g. a [`&Vec<syn::Attribute>`](syn::Attribute)). Most useful for derive
 //! macros.
-//! - [`Attribute::remove_attributes`] which takes an [`&mut
+//! - [`FromAttr::remove_attributes`] which takes an [`&mut
 //!   Vec<syn::Attribute>`](syn::Attribute)
-//! and does not only parse the [`Attribute`] but also removes those matching.
+//! and does not only parse the attributes, but also removes those matching.
 //! Useful for helper attributes for proc macros, where the helper attributes
 //! need to be removed.
 //!
 //! For parsing a single [`TokenStream`] e.g. for parsing the proc macro input
 //! there a two ways:
 //!
-//! - [`Attribute::from_args`] taking in a [`TokenStream`]
-//! - As `derive(Attribute)` also derives [`Parse`] so you can use the
+//! - [`FromAttr::from_args`] taking in a [`TokenStream`]
+//! - As `derive(FromAttr)` also derives [`Parse`] so you can use the
 //!   [parse](mod@syn::parse) API,
 //! e.g. with [`parse_macro_input!(tokens as
 //! Attribute)`](syn::parse_macro_input!).
@@ -137,8 +137,9 @@
 #![deny(missing_docs)]
 use std::fmt::{Debug, Display};
 
+pub use attribute_derive_macro::FromAttr;
 #[doc(hidden)]
-pub use attribute_derive_macro::Attribute;
+pub use self::FromAttr as Attribute;
 use proc_macro2::{Group, Literal, Punct, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::parse::{Parse, Result};
@@ -174,7 +175,7 @@ pub mod __private {
 
 /// Helper trait providing the path for an attribute.
 ///
-/// Automatically derived with [`Attribute`], if `#[attribute(ident =
+/// Automatically derived with [`FromAttr`], if `#[attribute(ident =
 /// "some_ident")]` is provided.
 pub trait AttributeIdent: Sized {
     /// Type used for Self::ALIASES, e.g. `[&'static str; 5]`
@@ -195,9 +196,9 @@ pub trait AttributeIdent: Sized {
 ///
 /// Basic gist is a struct like this:
 /// ```
-/// # use attribute_derive::Attribute;
+/// # use attribute_derive::FromAttr;
 /// # use syn::Type;
-/// #[derive(Attribute)]
+/// #[derive(FromAttr)]
 /// #[attribute(ident = collection)]
 /// #[attribute(error(missing_field = "`{field}` was not specified"))]
 /// struct CollectionAttribute {
@@ -218,7 +219,7 @@ pub trait AttributeIdent: Sized {
 /// ```text
 /// #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()], some_flag)]
 /// ```
-pub trait Attribute: Sized {
+pub trait FromAttr: Sized {
     /// Helper struct for storing and parsing attributes
     type Parser: TryExtendOne + Parse + Default;
 
@@ -408,11 +409,11 @@ where
     }
 }
 
-/// [`Attribute`] value that can be used both as a flag and with a value.
+/// [`FromAttr`] value that can be used both as a flag and with a value.
 /// ```
-/// # use attribute_derive::{Attribute, FlagOrValue};
+/// # use attribute_derive::{FromAttr, FlagOrValue};
 /// # use quote::quote;
-/// #[derive(Attribute)]
+/// #[derive(FromAttr)]
 /// struct Test {
 ///     param: FlagOrValue<String>,
 /// }

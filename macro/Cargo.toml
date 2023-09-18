@@ -24,7 +24,7 @@ proc-macro-utils = "0.8.0"
 # proc-macro-utils = {path = "../../proc-macro-utils"}
 interpolator = { version = "0.5.0", features = ["iter"] }
 collection_literals = "1"
-manyhow = "0.4"
+manyhow = "0.8"
 
 [package.metadata.release]
 tag = false

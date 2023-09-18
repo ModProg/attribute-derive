@@ -1,11 +1,11 @@
 #![allow(unused)]
 use std::fmt::Debug;
 
-use attribute_derive::{Attribute, AttributeIdent};
+use attribute_derive::{FromAttr, AttributeIdent};
 use proc_macro::TokenStream;
 use syn::{Block, DeriveInput, Result};
 
-// #[derive(Attribute)]
+// #[derive(FromAttr)]
 // #[attribute(ident = "positional")]
 // struct PositionalAttr {
 //     #[attribute(positional)]
@@ -20,17 +20,17 @@ use syn::{Block, DeriveInput, Result};
 // pub fn positional_derive(input: TokenStream) -> proc_macro::TokenStream {
 //     all_attrs::<PositionalAttr>(input).unwrap_or_else(|e|
 // e.to_compile_error().into()) }
-#[derive(Attribute)]
+#[derive(FromAttr)]
 #[attribute(ident = empty)]
 struct Empty {}
 
-#[derive(Attribute)]
+#[derive(FromAttr)]
 #[attribute(ident = single)]
 struct Single {
     field: bool,
 }
 
-#[derive(Attribute, Debug)]
+#[derive(FromAttr, Debug)]
 #[attribute(ident = ident, aliases = [a, b])]
 struct Normal {
     optional_implicit: Option<u8>,
@@ -59,7 +59,7 @@ pub fn normal_derive(input: TokenStream) -> proc_macro::TokenStream {
     tokens
 }
 
-#[derive(Attribute, Debug)]
+#[derive(FromAttr, Debug)]
 #[attribute(ident = ident, aliases = [a, b])]
 #[attribute(error(
     unknown_field = "found `{found_field}` but expected one of {expected_fields:i(`{}`)(, )}",
@@ -87,11 +87,11 @@ struct Custom {
     #[attribute(optional = false)]
     mandatory_flag: bool,
 }
-#[derive(Attribute)]
+#[derive(FromAttr)]
 #[attribute(ident = empty, error(unknown_field_empty = "found {found_field}, but expected none"))]
 struct EmptyCustom {}
 
-#[derive(Attribute)]
+#[derive(FromAttr)]
 #[attribute(ident = single, error(unknown_field_single = "found {found_field}, but expected {expected_field}"))]
 struct SingleCustom {
     field: bool,
@@ -108,7 +108,7 @@ pub fn custom_derive(input: TokenStream) -> proc_macro::TokenStream {
     tokens
 }
 
-fn all_attrs<T: Attribute + AttributeIdent>(input: TokenStream) -> Result<TokenStream> {
+fn all_attrs<T: FromAttr + AttributeIdent>(input: TokenStream) -> Result<TokenStream> {
     let DeriveInput { attrs, data, .. } = syn::parse(input)?;
     T::from_attributes(&attrs)?;
     match data {

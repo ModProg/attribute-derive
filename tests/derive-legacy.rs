@@ -1,4 +1,4 @@
-use attribute_derive::FromAttr;
+use attribute_derive::Attribute;
 use syn::parse_quote;
 
 #[cfg(feature = "syn-full")]
@@ -8,7 +8,7 @@ fn test() {
     use quote::quote;
     use syn::{parse2, Expr, LitStr, Type};
 
-    #[derive(FromAttr)]
+    #[derive(Attribute)]
     #[attribute(ident = test)]
     struct Test {
         // #[attribute(positional)]
@@ -95,7 +95,7 @@ fn test() {
 
 #[test]
 fn default() {
-    #[derive(FromAttr, Debug, PartialEq)]
+    #[derive(Attribute, Debug, PartialEq)]
     #[attribute(ident = test)]
     struct Test {
         #[attribute(optional)]
@@ -108,7 +108,7 @@ fn default() {
 
 #[test]
 fn aggregate() {
-    #[derive(FromAttr, Debug)]
+    #[derive(Attribute, Debug)]
     #[attribute(ident = test)]
     struct Test {
         strings: Vec<String>,
@@ -127,7 +127,7 @@ fn aggregate() {
 
 #[test]
 fn without_ident() {
-    #[derive(FromAttr)]
+    #[derive(Attribute)]
     struct Test {
         a: u8,
     }
@@ -138,7 +138,7 @@ fn without_ident() {
 
 #[test]
 fn empty() {
-    #[derive(FromAttr)]
+    #[derive(Attribute)]
     #[attribute(ident = test)]
     struct Test {}
 }

@@ -380,7 +380,7 @@ impl FieldAttrs {
 // TODO generally should use fully qualified names for trait function calls
 
 #[manyhow]
-#[proc_macro_derive(Attribute, attributes(attribute))]
+#[proc_macro_derive(FromAttr, attributes(attribute, attr, from_attr))]
 pub fn attribute_derive(input: proc_macro::TokenStream) -> Result {
     let DeriveInput {
         attrs,
@@ -719,7 +719,7 @@ pub fn attribute_derive(input: proc_macro::TokenStream) -> Result {
         #attribute_ident_trait
 
         #[allow(unreachable_code)]
-        impl #impl_generics ::attribute_derive::Attribute for #ident #ty_generics #where_clause {
+        impl #impl_generics ::attribute_derive::FromAttr for #ident #ty_generics #where_clause {
             type Parser = #parser_ident;
 
             fn from_parser($parser: Self::Parser) -> Result<Self> {
