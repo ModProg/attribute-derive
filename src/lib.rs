@@ -138,8 +138,6 @@
 use std::fmt::{Debug, Display};
 
 pub use attribute_derive_macro::FromAttr;
-#[doc(hidden)]
-pub use self::FromAttr as Attribute;
 use proc_macro2::{Group, Literal, Punct, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::parse::{Parse, Result};
@@ -167,6 +165,9 @@ use syn::{
     TypeMacro, TypeNever, TypeParam, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference,
     TypeSlice, TypeTraitObject, TypeTuple, UnOp, Variant, Visibility, WhereClause, WherePredicate,
 };
+
+#[doc(hidden)]
+pub use self::FromAttr as Attribute;
 
 #[doc(hidden)]
 pub mod __private {
@@ -443,6 +444,39 @@ pub enum FlagOrValue<T: ConvertParsed> {
     Flag,
     /// Was specified with a value.
     Value(T),
+}
+
+impl<T: ConvertParsed> FlagOrValue<T> {
+    /// Was not specified.
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    /// Was specified as a flag, i.e., without a value.
+    pub fn is_flag(&self) -> bool {
+        matches!(self, Self::Flag,)
+    }
+
+    /// Was specified with a value.
+    pub fn is_value(&self) -> bool {
+        matches!(self, Self::Value(_),)
+    }
+
+    /// Returns value if set.
+    pub fn into_value(self) -> Option<T> {
+        match self {
+            FlagOrValue::Value(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Returns value if set.
+    pub fn as_value(&self) -> Option<&T> {
+        match self {
+            FlagOrValue::Value(value) => Some(value),
+            _ => None,
+        }
+    }
 }
 
 mod internal {
