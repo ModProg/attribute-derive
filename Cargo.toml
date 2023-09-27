@@ -8,7 +8,7 @@ license = "MIT"
 readme = "README.md"
 repository = "https://github.com/ModProg/attribute-derive"
 name = "attribute-derive"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 
 [lib]
@@ -23,7 +23,7 @@ syn =  "2"
 syn-full = ["syn/full"]
 
 [dependencies.attribute-derive-macro]
-version = "0.8.0"
+version = "0.8.1"
 path = "macro"
 
 [workspace]
