@@ -256,9 +256,8 @@ pub trait FromAttr: Sized {
     {
         attrs
             .into_iter()
-            .filter_map(|attr| {
-                Self::is_ident(attr.path()).then(|| attr.parse_args::<Self::Parser>())
-            })
+            .filter(|&attr| Self::is_ident(attr.path()))
+            .map(|attr| attr.parse_args::<Self::Parser>())
             .try_fold(Self::Parser::default(), |mut acc, item| {
                 acc.try_extend_one(item?)?;
                 Ok(acc)

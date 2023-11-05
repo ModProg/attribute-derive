@@ -1,7 +1,7 @@
 #![allow(unused)]
 use std::fmt::Debug;
 
-use attribute_derive::{FromAttr, AttributeIdent};
+use attribute_derive::{AttributeIdent, FromAttr};
 use proc_macro::TokenStream;
 use syn::{Block, DeriveInput, Result};
 
