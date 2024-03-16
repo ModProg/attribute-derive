@@ -1,0 +1,106 @@
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1em; font-size: 70%;">
+  <style>
+    .node {
+      padding: .5em;
+      border: thin solid;
+      border-radius: 1em;
+    }
+    h3 {
+      margin-top: 0 !important;
+      font-size: 1.25em !important;
+    }
+    h3 code {
+      background: none !important;
+    }
+    .arrow-head {
+      width: 10px;
+      height: 10px;
+      border-top: thin solid;
+      border-right: thin solid;
+      transform: rotate(-45deg);
+      margin-bottom: -11px;
+    }
+    .arrow-v {
+      width: 0px; 
+      min-height: 10px;
+      border-left: thin solid; 
+    }
+    .arrow-h {
+      height: 0px; 
+      border-bottom: thin solid; 
+    }
+    .arrow-label {
+      padding-inline: 5px;
+      background: none !important;
+      text-align: center !important;
+      max-width: calc(100% - 1.5em);
+    }
+    .center-h {
+      margin-inline: auto;
+    }
+    .arrow-cell {
+      display: flex;
+      flex-direction: column;
+      align-content: center;
+      align-items: center;
+    }
+  </style>
+    <div class="node">
+        <h3><a href="../trait.FromAttr.html"><code>FromAttr</code></a></h3>
+        <p>Main entry point. Derived via macro. Anything that can be parsed from one or multiple attributes.</p>
+    </div>
+    <div class="node">
+        <h3><a href="trait.AttributeNamed.html"><code>AttributeNamed</code></a></h3>
+        <p>Values that can be parsed named, e.g. <code>name(&lt;value&gt;)</code>, <code>name = &lt;value&gt;</code>, <code>name</code> (as flag).</p>
+        <p>This is the default parsing mode used for fields in derived <a href="../trait.FromAttr.html"><code>FromAttr</code></a> implementations.</p>
+    </div>
+    <div class="node">
+        <h3><a href="trait.AttributePositional.html"><code>AttributePositional</code></a></h3>
+        <p>Values that can be parsed positionally, i.e., without a name, e.g. <code>"literal"</code>, <code>a + b</code>, <code>true</code>.</p>
+        <p>When deriving <a href="../trait.FromAttr.html"><code>FromAttr</code></a> this is enabled via putting <code>#[attr(positional)]</code> on the field.</p>
+    </div>
+    <div class="arrow-cell" style="grid-column: 1; grid-row: 2;">
+      <div class="arrow-head"></div>
+      <div style="flex: 1" class="arrow-v"></div>
+      <code class="arrow-label">impl &lt;T: AttributeValue&gt; FromAttr for T</code>
+      <div style="flex: 1" class="arrow-v"></div>
+    </div>
+    <div class="arrow-cell" style="grid-column: 2; grid-row: 2;">
+      <div class="arrow-head"></div>
+      <div style="flex: 1" class="arrow-v"></div>
+        <code class="arrow-label">impl &lt;T: AttributeValue&gt; AttributeNamed for T</code>
+      <div style="flex: 1" class="arrow-v"></div>
+    </div>
+    <div class="arrow-cell" style="grid-column: 3; grid-row: 2;">
+      <div class="arrow-head"></div>
+      <div style="flex: 1" class="arrow-v"></div>
+      <code class="arrow-label">impl &lt;T: AttributeValue + PositionalValue&gt; AttributePositional for T</code>
+      <div style="flex: 1" class="arrow-v"></div>
+    </div>
+    <div style="grid-column: 2 / 4; grid-row: 2; position: relative;">
+      <div class="arrow-v" style="left: calc(50% - 1.5em); bottom: 0; height: 50%; position: absolute;"> </div>
+      <div class="arrow-h" style="left: calc(50% - 1.5em); bottom: 50%; width: 3em; position: absolute;"> </div>
+    </div>
+    <div class="arrow-cell">
+      <div style="height: 4em; margin-top: -1em;" class="arrow-v"></div>
+      <div class="arrow-h" style="margin-left: 50%; width: 50%;"></div>
+    </div>
+    <div class="node">
+      <h3><a href="trait.AttributeValue.html"><code>AttributeValue</code></a></h3>
+      Any attribute that has the concept of a value, e.g., <code>"positional"</code>, <code>meta(&lt;value&gt;)</code>, <code>key = &lt;value&gt;</code>.
+    </div>
+    <div class="node">
+      <h3><a href="trait.PositionalValue.html"><code>PositionalValue</code></a></h3>
+      Empty marker trait, defining which <code>AttributeValue</code> implement <code>AttributePositional</code>.
+    </div>
+    <div class="arrow-cell" style="grid-column: 2;">
+      <div class="arrow-head"></div>
+      <div style="flex: 1" class="arrow-v"></div>
+        <code class="arrow-label">impl &lt;T: AttributeMeta&gt; AttributeValue for T</code>
+      <div style="flex: 1" class="arrow-v"></div>
+    </div>
+    <div class="node" style="grid-column: 2;">
+      <h3><a href="trait.AttributeMeta.html"><code>AttributeMeta</code></a></h3>
+        <p>Values in function or meta style attributes, i.e., <code>meta(&lt;value&gt;).</code></p>
+    </div>
+</div>

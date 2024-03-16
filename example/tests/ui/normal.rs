@@ -14,12 +14,11 @@ struct Example;
     optional_default = 3,
     default = 2,
     conflict_a = "hello",
-    mandatory_flag
 )]
 struct ExampleOI;
 
 #[derive(Normal)]
-#[ident(example = 1., mandatory_flag)]
+#[ident(example = 1.)]
 #[a(conflict_a = "hey")]
 #[b(conflict_b = "hi")]
 struct Conflict;
