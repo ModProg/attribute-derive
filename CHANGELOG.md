@@ -4,7 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+### Added
+- Attributes can now be nested, i.e. `#[outer(inner(key = value))]`.
+
+### Changed
+- **Breaking Change** added `span` to `IdentValue`, as this is mostly an implementation detail,
+  most users need not worry about this change.
+- **Breaking Change** changed `FromAttr::from_attributes` to take `[Borrow<Attribute>]`, only relevant for type inference.
+- **Breaking Change** `TokenStream`, when used as field in `FromAttr` now only supports `<name>(<tokens>)` syntax, `<name>=<tokens>` was removed.
+
+### Removed
+- **Breaking Change** mandatory flags
+- **Breaking Change** removed `found_field` in custom error messages
+
 ## [0.8.1] - 2023-09-27
 ### Added
 - Added `FlagOrValue::{is_none, is_flag, is_value, into_value, as_value}`
@@ -12,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.8.0] - 2023-09-18
 ### Changed
 - Renamed `Attribute` to `FromAttr` to not conflict with `syn::Attribute`.
-  The old path is still exported (#[doc(hidden)]). Existing usages should not break.
+  The old path is still exported (`#[doc(hidden)]` and deprecated). Existing usages should not break.
 
 ## [0.7.1] - 2023-09-17
 ### Fixed
@@ -22,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated dependencies
 
 ### Added
-- Added `FlagOrValue` to support a value both as a Flag and a Value
+- `FlagOrValue` to support a value both as a Flag and a Value
 
 ### Changed
 - `bool` now allows specifying a flag multiple times.

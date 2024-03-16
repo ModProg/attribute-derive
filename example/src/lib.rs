@@ -46,8 +46,6 @@ struct Normal {
     #[attribute(example = "2.5")]
     example: f32,
     flag: bool,
-    #[attribute(optional = false)]
-    mandatory_flag: bool,
 }
 #[proc_macro_derive(Normal, attributes(ident, a, b, empty, single))]
 pub fn normal_derive(input: TokenStream) -> proc_macro::TokenStream {
@@ -62,12 +60,10 @@ pub fn normal_derive(input: TokenStream) -> proc_macro::TokenStream {
 #[derive(FromAttr, Debug)]
 #[attribute(ident = ident, aliases = [a, b])]
 #[attribute(error(
-    unknown_field = "found `{found_field}` but expected one of {expected_fields:i(`{}`)(, )}",
+    unknown_field = "expected one of {expected_fields:i(`{}`)(, )}",
     duplicate_field = "duplicate `{field}`",
     missing_field = "missing field `{field}`",
     field_help = "try {attribute}: {field}={example}",
-    missing_flag = "missing flag `{flag}`",
-    flag_help = "try {attribute}: {flag}",
     conflict = "{first} !!! {second}"
 ))]
 struct Custom {
@@ -84,15 +80,13 @@ struct Custom {
     #[attribute(example = "2.5")]
     example: f32,
     flag: bool,
-    #[attribute(optional = false)]
-    mandatory_flag: bool,
 }
 #[derive(FromAttr)]
-#[attribute(ident = empty, error(unknown_field_empty = "found {found_field}, but expected none"))]
+#[attribute(ident = empty, error(unknown_field_empty = "expected nothing"))]
 struct EmptyCustom {}
 
 #[derive(FromAttr)]
-#[attribute(ident = single, error(unknown_field_single = "found {found_field}, but expected {expected_field}"))]
+#[attribute(ident = single, error(unknown_field_single = "expected {expected_field}"))]
 struct SingleCustom {
     field: bool,
 }

@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use attribute_derive::Attribute;
 use syn::parse_quote;
 
@@ -26,7 +27,7 @@ fn test() {
     }
 
     let parsed = Test::from_attributes([
-        parse_quote!(#[test(/* 8, */ b="hi", c="ho", oc="xD", d=(), e=if true { "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)]),
+        parse_quote!(#[test(/* 8, */ b="hi", c="ho", oc="xD", d=(), e=if true { "a" } else { "b" }, f= [(), Debug], g, i(smth::hello + 24/3'a', b = c))]),
     ].iter())
     .unwrap();
     // assert_eq!(parsed.a, 8);
@@ -42,7 +43,7 @@ fn test() {
     assert_eq!(parsed.i.to_string(), "smth :: hello + 24 / 3 'a' , b = c");
 
     let parsed = Test::from_args(
-        quote!(/* 8, */ b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)
+        quote!(/* 8, */ b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i(smth::hello + 24/3'a', b = c))
     )
     .unwrap();
     // assert_eq!(parsed.a, 8);
@@ -59,7 +60,7 @@ fn test() {
 
     let mut attrs = vec![
         parse_quote!(#[something]),
-        parse_quote!(#[test(/* 8, */ b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)]),
+        parse_quote!(#[test(/* 8, */ b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i(smth::hello + 24/3'a', b = c))]),
         parse_quote!(#[another(smth)]),
     ];
     let parsed = Test::remove_attributes(&mut attrs).unwrap();
@@ -77,7 +78,7 @@ fn test() {
     assert_eq!(attrs.len(), 2);
 
     let parsed: Test = parse2(
-        quote!(/* 8, */ b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i = smth::hello + 24/3'a', b = c)
+        quote!(/* 8, */ b="hi", c="ho", oc="xD", d=(), e=if true{ "a" } else { "b" }, f= [(), Debug], g, i(smth::hello + 24/3'a', b = c))
     )
     .unwrap();
     // assert_eq!(parsed.a, 8);
@@ -103,7 +104,10 @@ fn default() {
         #[attribute(default = 10)]
         ho: usize,
     }
-    assert_eq!(Test::from_attributes([]).unwrap(), Test { hi: 0., ho: 10 });
+    assert_eq!(Test::from_attributes::<syn::Attribute>([]).unwrap(), Test {
+        hi: 0.,
+        ho: 10
+    });
 }
 
 #[test]

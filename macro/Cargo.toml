@@ -18,13 +18,13 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1"
 quote = "1"
-quote-use = { version = "0.7", features = ["namespace_idents"] }
+quote-use = "0.8"
 syn = "2"
 proc-macro-utils = "0.8.0"
 # proc-macro-utils = {path = "../../proc-macro-utils"}
 interpolator = { version = "0.5.0", features = ["iter"] }
 collection_literals = "1"
-manyhow = "0.8"
+manyhow = "0.10"
 
 [package.metadata.release]
 tag = false

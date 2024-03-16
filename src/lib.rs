@@ -1,18 +1,22 @@
-//! Basicly clap for attribute macros:
+#![warn(missing_docs)]
+//! Basically clap for attribute macros:
 //! ```
-//! # use attribute_derive::FromAttr;
-//! # use syn::Type;
+//! use attribute_derive::FromAttr;
 //! #[derive(FromAttr)]
-//! #[attribute(ident = collection)]
+//! #[attribute(ident = attr_name)]
+//! // overriding the builtin error messages
 //! #[attribute(error(missing_field = "`{field}` was not specified"))]
-//! struct CollectionAttribute {
+//! struct MyAttribute {
+//!     // Positional values need to be specified before any named ones
+//!     #[attribute(positional)]
+//!     positional: u8,
 //!     // Options are optional by default (will be set to None if not specified)
-//!     authority: Option<String>,
-//!     name: String,
+//!     optional: Option<String>,
+//!     required: String,
 //!     // Any type implementing default can be flagged as default
 //!     // This will be set to Vec::default() when not specified
 //!     #[attribute(optional)]
-//!     views: Vec<Type>,
+//!     list: Vec<syn::Type>,
 //!     // Booleans can be used without assigning a value, i.e., as a flag.
 //!     // If omitted they are set to false
 //!     some_flag: bool,
@@ -20,18 +24,24 @@
 //! ```
 //!
 //! Will be able to parse an attribute like this:
-//! ```text
-//! #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()])]
+//! ```rust
+//! # #[cfg(no)]
+//! #[attr_name(5, optional="some", required = r#"string"#, some_flag, list = [Option, ()])]
+//! // or
+//! #[attr_name(5, required = "string", list(Option, ()))]
+//! # struct Placeholder;
 //! ```
 //!
-//! Any type that [`ConvertParsed`] is implemented for is supported. These
-//! should be the general types that syn supports like [`LitStr`](struct@LitStr)
-//! or [`Type`] or that have a direct equivalent in those like [`String`],
-//! [`char`] or [`f32`]. A special treatment have [`Vecs`](Vec) which are parsed
-//! using [`Array`] with the syntax `[a, b, c]` and [`Options`](Option) that
-//! will be [`None`] if not specified and [`Some`] when the value is specified
-//! via the attribute. It is not specified via `Some(value)` but as just
-//! `value`.
+//! Any type that for [`AttributeNamed`] or [`AttributePositional`] are
+//! implemented respectively are supported. These should be the general types
+//! that syn supports like [`LitStr`](struct@LitStr) or [`Type`] or that have a
+//! direct equivalent in those like [`String`], [`char`] or [`f32`]. A special
+//! treatment have [`Vecs`](Vec) which are parsed as either `name = [a, b, c]`
+//! or `name(a, b, c)` and [`Options`](Option) that will be [`None`] if not
+//! specified and [`Some`] when the value is specified via the attribute. It is
+//! not specified via `Some(value)` but as just `value`. [`Bools`](bool) are
+//! used for flags, i.e., without a value. Most should just behave as expected,
+//! see [`parsing`] for details.
 //!
 //! # Attributes
 //!
@@ -51,32 +61,26 @@
 //!     - ``unknown_field = "supported fields are {expected_fields:i..-1(`{}`)(,
 //!       )} and `{expected_fields:i-1}`",`` Custom error message printed if an
 //!       unknown property is specified and attribute has more than one field.
-//!       Supports `{found_field}` and `{expected_fields:i}` placeholders.
+//!       Placeholders: `{expected_fields:i}`.
 //!     - ``unknown_field_single = "expected supported field
 //!       `{expected_field}`",`` Custom error message printed if an unknown
-//!       property is specified, and attribute only has a single field. Supports
-//!       `{found_field}` and `{expected_field}` placeholders.
+//!       property is specified, and attribute only has a single field.
+//!       Placeholders: `{expected_field}`.
 //!     - ``unknown_field_empty = "expected empty attribute",`` Custom error
 //!       message printed if a property is specified, and attribute has no
-//!       fields. Supports `{found_field}` placeholder.
+//!       fields.
 //!     - ``duplicate_field = "`{field}` is specified multiple times",`` Custom
 //!       error message printed if a property is specified multiple times.
-//!       Supports `{field}` placeholder.
+//!       Placeholders: `{field}`.
 //!     - ``missing_field = "required `{field}` is not specified",`` Custom
 //!       error message printed if a required property is not specified.
-//!       Supports `{field}` placeholder.
+//!       Placeholders: `{field}`.
 //!     - ``field_help = "try `#[{attribute}({field}={example})]`",`` Additional
 //!       help message printed if a required property is not specified or has an
-//!       error. Supports `{attribute}`, `{field}` and `{example}` placeholder.
-//!     - ``missing_flag = "required `{flag}` is not specified",`` Custom error
-//!       message printed if a required flag is not specified. Supports `{flag}`
-//!       placeholder.
-//!     - ``flag_help = "try `#[{attribute}({flag})]`",`` Additional help
-//!       message printed if a required flag is not specified. Supports
-//!       `{attribute}` and `{flag}` placeholder.
+//!       error. Placeholders: `{attribute}`, `{field}` and `{example}`.
 //!     - ``conflict = "`{first}` conflicts with mutually exclusive
-//!       `{second}`"`` Custom error message printed if conflicting properties
-//!       are specified. Supports `{first}` and `{second}` placeholder.
+//!       `{second}`"`` Custom error message printed when conflicting properties
+//!       are specified. Placeholders: `{first}` and `{second}`.
 //!
 //!   `)`
 // //! - `duplicate = AggregateOrError` Change the behavior for duplicate arguments
@@ -88,26 +92,11 @@
 // //!   - `Override` Disables aggregation, always take the last value.
 //! ### Fields
 //!
-//! - `optional` / `optional = true` If field is not specified, the default
-//!   value is used instead.
-//! - `optional = false` Disables implicit optionality of [`Option`], [`Vec`]
-//!   and [`bool`]. Note that this makes `Option<T>` behave the same as `T` and
-//!   makes a bool a mandatory flag.
+//! - `optional` If field is not specified, the default value is used instead.
 //! - `default = <default expr>` provides a default to be used instead of
-//!   [`Default`]. Enables `optional`.
-// //! - `aggregate = false` Disables aggregation for [`Vec`].
-// //! - `flag = false` Disables flag mode for bool.
-//! - `conflicts = [<field>, ...]` Conflicting fields
+//!   [`Default::default()`]. Enables `optional`.
+//! - `conflicts(<field>, ...)` Conflicting fields
 //! - `example = "<example>"`
-//!
-//! # Limitations
-//!
-//! There are some limitations in syntax parsing that will be lifted in future
-//! releases.
-//!
-//! - literals in top level (meaning something like `#[attr(42, 3.14, "hi")]`
-//! - function like arguments (something like `#[attr(view(a = "test"))]`
-//! - other syntaxes, maybe something like `key: value`
 //!
 //! # Parse methods
 //!
@@ -118,14 +107,14 @@
 //! syn::Attribute`](syn::Attribute)
 //! (e.g. a [`&Vec<syn::Attribute>`](syn::Attribute)). Most useful for derive
 //! macros.
-//! - [`FromAttr::remove_attributes`] which takes an [`&mut
+//! - [`FromAttr::remove_attributes`] which takes a [`&mut
 //!   Vec<syn::Attribute>`](syn::Attribute)
 //! and does not only parse the attributes, but also removes those matching.
-//! Useful for helper attributes for proc macros, where the helper attributes
-//! need to be removed.
+//! Useful for helper attributes for attribute macros, where the helper
+//! attributes need to be removed.
 //!
 //! For parsing a single [`TokenStream`] e.g. for parsing the proc macro input
-//! there a two ways:
+//! there are two ways:
 //!
 //! - [`FromAttr::from_args`] taking in a [`TokenStream`]
 //! - As `derive(FromAttr)` also derives [`Parse`] so you can use the
@@ -134,903 +123,222 @@
 //! Attribute)`](syn::parse_macro_input!).
 //!
 //! [interpolator]: https://docs.rs/interpolator/latest/interpolator/
-#![deny(missing_docs)]
-use std::fmt::{Debug, Display};
-
-pub use attribute_derive_macro::FromAttr;
-use proc_macro2::{Group, Literal, Punct, Span, TokenStream, TokenTree};
-use quote::ToTokens;
-use syn::parse::{Parse, Result};
-use syn::punctuated::Punctuated;
-use syn::token::{
-    Abstract, And, AndAnd, AndEq, As, Async, At, Auto, Await, Become, Break, Caret, CaretEq, Colon,
-    Comma, Const, Continue, Crate, Do, Dollar, Dot, DotDot, DotDotDot, DotDotEq, Dyn, Else, Enum,
-    Eq, EqEq, Extern, FatArrow, Final, Fn, For, Ge, Gt, If, Impl, In, LArrow, Le, Let, Loop, Lt,
-    Match, Minus, MinusEq, Mod, Move, Mut, Ne, Not, Or, OrEq, OrOr, Override, PathSep, Percent,
-    PercentEq, Plus, PlusEq, Pound, Priv, Pub, Question, RArrow, Ref, Return, SelfType, SelfValue,
-    Semi, Shl, ShlEq, Shr, ShrEq, Slash, SlashEq, Star, StarEq, Static, Struct, Super, Tilde,
-    Trait, Try, Typeof, Underscore, Union, Unsafe, Unsized, Use, Virtual, Where, While, Yield,
-};
-use syn::{
-    bracketed, parse2, parse_quote, Abi, AngleBracketedGenericArguments, BareFnArg, BinOp,
-    BoundLifetimes, ConstParam, Constraint, DeriveInput, Expr, ExprArray, ExprAssign, ExprAsync,
-    ExprBinary, ExprBlock, ExprBreak, ExprCall, ExprCast, ExprClosure, ExprContinue, ExprField,
-    ExprForLoop, ExprIf, ExprIndex, ExprLet, ExprLit, ExprLoop, ExprMacro, ExprMatch,
-    ExprMethodCall, ExprParen, ExprPath, ExprRange, ExprReference, ExprRepeat, ExprReturn,
-    ExprStruct, ExprTry, ExprTryBlock, ExprTuple, ExprUnary, ExprUnsafe, ExprWhile, ExprYield,
-    FieldsNamed, FieldsUnnamed, GenericArgument, GenericParam, Generics, Ident, Index, Lifetime,
-    Lit, LitBool, LitByteStr, LitChar, LitFloat, LitInt, LitStr, Member, Meta, MetaList,
-    MetaNameValue, ParenthesizedGenericArguments, Path, PathSegment, ReturnType, Token, TraitBound,
-    TraitBoundModifier, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeInfer,
-    TypeMacro, TypeNever, TypeParam, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference,
-    TypeSlice, TypeTraitObject, TypeTuple, UnOp, Variant, Visibility, WhereClause, WherePredicate,
-};
+use std::borrow::Borrow;
+use std::fmt::Debug;
+use std::iter;
 
 #[doc(hidden)]
-pub use self::FromAttr as Attribute;
+pub use attribute_derive_macro::Attribute;
+pub use attribute_derive_macro::FromAttr;
+use manyhow::SpanRanged;
+#[cfg(doc)]
+use parsing::*;
+use parsing::{AttributeBase, SpannedValue};
+use proc_macro2::{Span, TokenStream};
+use syn::parse::{ParseStream, Parser, Result};
+#[cfg(doc)]
+use syn::{parse::Parse, LitStr, Type};
+use syn::{Error, Path};
+#[doc(hidden)]
+pub use tmp::FromAttr as Attribute;
+pub use tmp::FromAttr;
 
 #[doc(hidden)]
 pub mod __private {
     pub use {proc_macro2, quote, syn};
 }
 
+mod std_impls;
+
+mod syn_impls;
+
+pub mod utils;
+pub use utils::FlagOrValue;
+
+pub mod parsing;
+
+pub mod from_partial;
+pub use from_partial::FromPartial;
+
+mod tmp {
+    use super::*;
+    /// The trait you actually derive on your attribute struct.
+    ///
+    /// Basic gist is a struct like this:
+    /// ```
+    /// # use attribute_derive::FromAttr;
+    /// # use syn::Type;
+    /// #[derive(FromAttr)]
+    /// #[attribute(ident = collection)]
+    /// #[attribute(error(missing_field = "`{field}` was not specified"))]
+    /// struct CollectionAttribute {
+    ///     // Options are optional by default (will be set to None if not specified)
+    ///     authority: Option<String>,
+    ///     name: String,
+    ///     // Any type implementing default can be flagged as optional
+    ///     // This will be set to Vec::default() when not specified
+    ///     #[attribute(optional)]
+    ///     views: Vec<Type>,
+    ///     // Booleans can be used without assiging a value. as a flag.
+    ///     // If omitted they are set to false
+    ///     some_flag: bool,
+    /// }
+    /// ```
+    ///
+    /// Will be able to parse an attribute like this:
+    /// ```text
+    /// #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()], some_flag)]
+    /// ```
+    pub trait FromAttr: Sized + AttributeBase {
+        /// Parses an [`IntoIterator`] of [`syn::Attributes`](syn::Attribute)
+        /// e.g. [`Vec<Attribute>`](Vec). Only available if you specify
+        /// the attribute ident: `#[attribute(ident="<ident>")]` when
+        /// using the derive macro.
+        ///
+        /// It can therefore parse fields set over multiple attributes like:
+        /// ```text
+        /// #[collection(authority = "Authority", name = "Name")]
+        /// #[collection(views = [A, B])]
+        /// ```
+        /// And also catch duplicate/conflicting settings over those.
+        ///
+        /// This is best used for derive macros, where you don't need to remove
+        /// your attributes.
+        ///
+        /// # Errors
+        /// Fails with a [`syn::Error`] so you can conveniently return that as a
+        /// compiler error in a proc macro in the following cases
+        ///
+        /// - A required parameter is omitted
+        /// - Invalid input is given for a parameter
+        /// - A non aggregating parameter is specified multiple times
+        /// - An attribute called [`IDENTS`](const@AttributeIdent::IDENTS) has
+        ///   invalid syntax (e.g. `#attr(a: "a")`)
+        fn from_attributes<A: Borrow<syn::Attribute>>(
+            attrs: impl IntoIterator<Item = A>,
+        ) -> Result<Self>
+        where
+            Self: AttributeIdent,
+        {
+            attrs
+                .into_iter()
+                .filter(|attr| Self::is_ident(attr.borrow().path()))
+                .map(|attr| attr.borrow().parse_args_with(Self::parse_partial))
+                .try_fold(None, |acc, item| {
+                    Self::join(
+                        acc,
+                        SpannedValue::call_site(item?),
+                        &format!("`{}` was specified twice", Self::ident()),
+                    )
+                })
+                .and_then(|o| {
+                    Self::from_option(
+                        o.map(SpannedValue::value),
+                        &format!("`{}` is not set", Self::ident()),
+                    )
+                })
+        }
+
+        /// Parses a [`&mut Vec<syn::Attributes>`](syn::Attribute). Removing
+        /// matching attributes. Only available if you specify an ident:
+        /// `#[attribute(ident="<ident>")]` when using the derive macro.
+        ///
+        /// It can therefore parse fields set over multiple attributes like:
+        /// ```text
+        /// #[collection(authority = "Authority", name = "Name")]
+        /// #[collection(views = [A, B])]
+        /// ```
+        /// And also catch duplicate/conflicting settings over those.
+        ///
+        /// Use this if you are implementing an attribute macro, and need to
+        /// remove your helper attributes.
+        ///
+        /// # Errors
+        /// Fails with a [`syn::Error`], so you can conveniently return that as
+        /// a compiler error in a proc macro in the following cases
+        ///
+        /// - A necessary parameter is omitted
+        /// - Invalid input is given for a parameter
+        /// - A non aggregating parameter is specified multiple times
+        /// - An attribute called [`IDENTS`](const@AttributeIdent::IDENTS) has
+        ///   invalid syntax (e.g. `#attr(a: "a")`)
+        fn remove_attributes(attrs: &mut Vec<syn::Attribute>) -> Result<Self>
+        where
+            Self: AttributeIdent,
+        {
+            let mut i = 0;
+            Self::from_attributes(iter::from_fn(|| {
+                while i < attrs.len() {
+                    if Self::is_ident(attrs[i].path()) {
+                        return Some(attrs.remove(i));
+                    }
+                    i += 1;
+                }
+                None
+            }))
+        }
+
+        #[doc(hidden)]
+        #[deprecated = "use `from_input` instead"]
+        fn from_args(tokens: TokenStream) -> Result<Self> {
+            Self::from_input(tokens)
+        }
+
+        /// Parses a [`TokenStream`](proc_macro2::TokenStream).
+        ///
+        /// Useful for implementing general proc macros to parse the input of
+        /// your macro.
+        ///
+        /// This is a convenience over [`parse_input`](Self::parse_input). More
+        /// details are documented there.
+        fn from_input(input: impl Into<TokenStream>) -> Result<Self> {
+            Self::parse_input.parse2(input.into())
+        }
+
+        /// Parses input as the complete attribute.
+        ///
+        /// Due to this only parsing the input for a single attribute it is not
+        /// able to aggregate input spread over multiple attributes.
+        ///
+        /// # Errors
+        /// Fails with a [`syn::Error`], so you can conveniently return that as
+        /// a compiler error in a proc macro in the following cases
+        ///
+        /// - A necessary parameter is omitted
+        /// - Invalid input is given for a parameter
+        /// - A non aggregating parameter is specified multiple times
+        fn parse_input(input: ParseStream) -> Result<Self> {
+            Self::parse_partial(input).and_then(Self::from)
+        }
+
+        /// Actual implementation for parsing the attribute. This is the only
+        /// function required to implement in this trait and derived by the
+        /// [`FromAttr`](macro@FromAttr) derive macro.
+        fn parse_partial(input: ParseStream) -> Result<Self::Partial>;
+    }
+}
+
 /// Helper trait providing the path for an attribute.
 ///
 /// Automatically derived with [`FromAttr`], if `#[attribute(ident =
 /// "some_ident")]` is provided.
-pub trait AttributeIdent: Sized {
-    /// Type used for Self::ALIASES, e.g. `[&'static str; 5]`
-    type IDENTS: AsRef<[&'static str]>;
-    /// List of idents
-    const IDENTS: Self::IDENTS;
+pub trait AttributeIdent {
+    /// List of idents, must contain at least one ident.
+    const IDENTS: &'static [&'static str];
 
-    /// Tests if Attribute matches one of the idents
+    /// Tests if Attribute matches one of the idents.
     fn is_ident(path: &Path) -> bool {
+        Self::IDENTS.iter().any(|ident| path.is_ident(ident))
+    }
+
+    /// Returns default ident.
+    ///
+    /// # Panics
+    /// The default implementation panics if `IDENTS` is empty. Implementors
+    /// should ensure this is not the case.
+    fn ident() -> &'static str {
         Self::IDENTS
-            .as_ref()
-            .iter()
-            .any(|ident| path.is_ident(ident))
+            .first()
+            .expect("`AttributeIdent::IDENTS` should not be empty")
     }
-}
-
-/// The trait you actually derive on your attribute struct.
-///
-/// Basic gist is a struct like this:
-/// ```
-/// # use attribute_derive::FromAttr;
-/// # use syn::Type;
-/// #[derive(FromAttr)]
-/// #[attribute(ident = collection)]
-/// #[attribute(error(missing_field = "`{field}` was not specified"))]
-/// struct CollectionAttribute {
-///     // Options are optional by default (will be set to None if not specified)
-///     authority: Option<String>,
-///     name: String,
-///     // Any type implementing default can be flagged as default
-///     // This will be set to Vec::default() when not specified
-///     #[attribute(optional)]
-///     views: Vec<Type>,
-///     // Booleans can be used without assiging a value. as a flag.
-///     // If omitted they are set to false
-///     some_flag: bool,
-/// }
-/// ```
-///
-/// Will be able to parse an attribute like this:
-/// ```text
-/// #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()], some_flag)]
-/// ```
-pub trait FromAttr: Sized {
-    /// Helper struct for storing and parsing attributes
-    type Parser: TryExtendOne + Parse + Default;
-
-    /// Handles conversion from `Parser` used by the other functions internally
-    fn from_parser(parser: Self::Parser) -> Result<Self>;
-
-    /// Parses an [`IntoIterator`] of [`syn::Attributes`](syn::Attribute) e.g.
-    /// [`Vec<Attribute>`](Vec). Only availible if you specify the attribute
-    /// ident: `#[attribute(ident="<ident>")]` when using the derive macro.
-    ///
-    /// It can therefore parse fields set over multiple attributes like:
-    /// ```text
-    /// #[collection(authority = "Authority", name = "Name")]
-    /// #[collection(views = [A, B])]
-    /// ```
-    /// and also catch duplicate/conflicting settings over those.
-    ///
-    /// This is best used for derive macros, where you don't need to remove your
-    /// attributes.
-    ///
-    /// # Errors
-    /// Fails with a [`syn::Error`] so you can conveniently return that as a
-    /// compiler error in a proc macro in the following cases
-    ///
-    /// - A necessary parameter is omitted
-    /// - Invalid input is given for a parameter
-    /// - A non aggregating parameter is specified multiple times
-    /// - An attribute called [`IDENTS`](const@AttributeIdent::IDENTS) has
-    ///   invalid syntax (e.g. `#attr(a: "a")`)
-    fn from_attributes<'a>(attrs: impl IntoIterator<Item = &'a syn::Attribute>) -> Result<Self>
-    where
-        Self: AttributeIdent,
-    {
-        attrs
-            .into_iter()
-            .filter(|&attr| Self::is_ident(attr.path()))
-            .map(|attr| attr.parse_args::<Self::Parser>())
-            .try_fold(Self::Parser::default(), |mut acc, item| {
-                acc.try_extend_one(item?)?;
-                Ok(acc)
-            })
-            .and_then(Self::from_parser)
-    }
-
-    /// Parses an [`&mut Vec<syn::Attributes>`](syn::Attribute). Removing
-    /// matching attributes. Only availible if you specify an ident:
-    /// `#[attribute(ident="<ident>")]` when using the derive macro.
-    ///
-    /// It can therefore parse fields set over multiple attributes like:
-    /// ```text
-    /// #[collection(authority = "Authority", name = "Name")]
-    /// #[collection(views = [A, B])]
-    /// ```
-    /// and also catch duplicate/conflicting settings over those.
-    ///
-    /// Use this if you are implementing an attribute macro, and need to remove
-    /// your helper attributes.
-    ///
-    /// # Errors
-    /// Fails with a [`syn::Error`] so you can conveniently return that as a
-    /// compiler error in a proc macro in the following cases
-    ///
-    /// - A necessary parameter is omitted
-    /// - Invalid input is given for a parameter
-    /// - A non aggregating parameter is specified multiple times
-    /// - An attribute called [`IDENTS`](const@AttributeIdent::IDENTS) has
-    ///   invalid syntax (e.g. `#attr(a: "a")`)
-    fn remove_attributes(attrs: &mut Vec<syn::Attribute>) -> Result<Self>
-    where
-        Self: AttributeIdent,
-    {
-        let mut parser: Self::Parser = Default::default();
-        let mut i = 0;
-        while i < attrs.len() {
-            if Self::is_ident(attrs[i].path()) {
-                parser.try_extend_one(attrs.remove(i).parse_args()?)?;
-            } else {
-                i += 1;
-            }
-        }
-        Self::from_parser(parser)
-    }
-
-    /// Parses a [`TokenStream`](proc_macro2::TokenStream).
-    ///
-    /// Useful for implementing general proc macros to parse the input of your
-    /// macro.
-    ///
-    /// Due to this only parsing the input for a single attribute it is not able
-    /// to aggregate input spread over multiple attributes.
-    ///
-    /// # Errors
-    /// Fails with a [`syn::Error`] so you can conveniently return that as a
-    /// compiler error in a proc macro in the following cases
-    ///
-    /// - A necessary parameter is omitted
-    /// - Invalid input is given for a parameter
-    /// - A non aggregating parameter is specified multiple times
-    fn from_args(tokens: TokenStream) -> Result<Self> {
-        parse2(tokens).and_then(Self::from_parser)
-    }
-}
-
-/// Trait to join two structs of the same type
-pub trait TryExtendOne {
-    /// Try to extend self with another Self, failing if there are conflicts
-    fn try_extend_one(&mut self, other: Self) -> Result<()>;
-}
-
-/// Helper trait to convert syn types implementing [`Parse`] like
-/// [`LitStr`](struct@LitStr) to rust types like [`String`]
-///
-/// You probably don't need to implement this trait, as most syn types like
-/// [`LitStr`](struct@LitStr) and [`Type`] or that have a direct equivalent in
-/// those like [`String`], [`char`] or [`f32`] are already implemented. A
-/// special treatment have [`Vecs`](Vec) which are parsed using the helper
-/// [`Array`] with the syntax `[a, b, c]` and [`Options`](Option) that will be
-/// [`None`] if not specified and [`Some`] when the value is specified via the
-/// attribute. It is not specified via `Some(value)` but as just `value`.
-pub trait ConvertParsed
-where
-    Self: Sized,
-    Self::Type: Error,
-{
-    /// The type this can be converted from
-    type Type;
-    /// This takes [`Self::Type`] and converts it to [`Self`].
-    ///
-    /// This can return an error, e.g. when parsing an integer too large for a
-    /// [`u8`] into an `u8`
-    fn convert(value: Self::Type) -> Result<Self>;
-    /// Should values of this type return their default when they are not
-    /// specified even when the `default` flag is not specified (only
-    /// returns `true` for [`Option`], [`Vec`] and [`bool`] currently)
-    fn default_by_default() -> bool {
-        false
-    }
-    /// The default value, this is necessary to implement the implicit default
-    /// behavior of [`Option`] and [`bool`].
-    ///
-    /// This is necessary as the [`Default`] trait cannot be used in expanded
-    /// code, but normally you can easily implement it using it:
-    /// ```
-    /// # use attribute_derive::ConvertParsed;
-    /// # use syn::{Result, LitBool};
-    /// # #[derive(Default)]
-    /// # struct bool;
-    /// impl ConvertParsed for bool {
-    /// #   type Type = LitBool;
-    /// #   fn convert(value: Self::Type) -> Result<Self> {
-    /// #       unimplemented!()
-    /// #   }
-    ///     fn default() -> Self {
-    ///         Default::default()
-    ///     }
-    /// }
-    /// ```
-    fn default() -> Self {
-        unreachable!("default_by_default should only return true if this is overridden")
-    }
-    /// Returns the value when this type is specified as flag i.e. just
-    /// `#[attr(default)]` instead of `#[attr(default=true)]`. This relies
-    /// on [`Self::default`].
-    fn as_flag() -> Option<Self::Type> {
-        None
-    }
-    /// Should values of this type be aggregated instead of conflict if
-    /// specified multiple times
-    ///
-    /// Currently this is only implemented for [`Arrays`](Array)
-    #[allow(unused)]
-    fn aggregate(
-        this: Option<IdentValue<Self::Type>>,
-        other: Option<IdentValue<Self::Type>>,
-        error_msg: &str,
-    ) -> Result<Option<IdentValue<Self::Type>>> {
-        match (this, other) {
-            (None, value) => Ok(value),
-            (value, None) => Ok(value),
-            (Some(this), Some(other)) => {
-                let mut error = this.ident.error(error_msg);
-                syn::Error::combine(&mut error, other.ident.error(error_msg));
-                Err(error)
-            }
-        }
-    }
-}
-
-/// [`FromAttr`] value that can be used both as a flag and with a value.
-/// ```
-/// # use attribute_derive::{FromAttr, FlagOrValue};
-/// # use quote::quote;
-/// #[derive(FromAttr)]
-/// struct Test {
-///     param: FlagOrValue<String>,
-/// }
-///
-/// assert_eq!(
-///     Test::from_args(quote!(param)).unwrap().param,
-///     FlagOrValue::Flag
-/// );
-/// assert_eq!(
-///     Test::from_args(quote!(param = "value")).unwrap().param,
-///     FlagOrValue::Value("value".into())
-/// );
-/// assert_eq!(
-///     Test::from_args(quote!(param, param = "value", param))
-///         .unwrap()
-///         .param,
-///     FlagOrValue::Value("value".into())
-/// );
-/// assert_eq!(Test::from_args(quote!()).unwrap().param, FlagOrValue::None);
-/// ```
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub enum FlagOrValue<T: ConvertParsed> {
-    /// Was not specified.
-    #[default]
-    None,
-    /// Was specified as a flag, i.e., without a value.
-    Flag,
-    /// Was specified with a value.
-    Value(T),
-}
-
-impl<T: ConvertParsed> FlagOrValue<T> {
-    /// Was not specified.
-    pub fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
-
-    /// Was specified as a flag, i.e., without a value.
-    pub fn is_flag(&self) -> bool {
-        matches!(self, Self::Flag,)
-    }
-
-    /// Was specified with a value.
-    pub fn is_value(&self) -> bool {
-        matches!(self, Self::Value(_),)
-    }
-
-    /// Returns value if set.
-    pub fn into_value(self) -> Option<T> {
-        match self {
-            FlagOrValue::Value(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Returns value if set.
-    pub fn as_value(&self) -> Option<&T> {
-        match self {
-            FlagOrValue::Value(value) => Some(value),
-            _ => None,
-        }
-    }
-}
-
-mod internal {
-    use proc_macro2::TokenStream;
-    use quote::ToTokens;
-    use syn::parse::Parse;
-
-    pub enum FlagOrType<T> {
-        Flag,
-        Type(T),
-    }
-    impl<T: ToTokens> ToTokens for FlagOrType<T> {
-        fn to_tokens(&self, tokens: &mut TokenStream) {
-            if let Self::Type(t) = self {
-                t.to_tokens(tokens);
-            }
-        }
-    }
-
-    impl<T: Parse> Parse for FlagOrType<T> {
-        fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-            input.parse().map(Self::Type)
-        }
-    }
-}
-use internal::FlagOrType;
-
-impl<T: ConvertParsed + Debug> ConvertParsed for FlagOrValue<T>
-where
-    T::Type: ToTokens,
-{
-    type Type = FlagOrType<T::Type>;
-
-    fn convert(value: Self::Type) -> Result<Self> {
-        Ok(match value {
-            FlagOrType::Flag => Self::Flag,
-            FlagOrType::Type(v) => Self::Value(T::convert(v)?),
-        })
-    }
-
-    fn default_by_default() -> bool {
-        true
-    }
-
-    fn default() -> Self {
-        Self::None
-    }
-
-    fn as_flag() -> Option<Self::Type> {
-        Some(FlagOrType::Flag)
-    }
-
-    fn aggregate(
-        this: Option<IdentValue<Self::Type>>,
-        other: Option<IdentValue<Self::Type>>,
-        error_msg: &str,
-    ) -> Result<Option<IdentValue<Self::Type>>> {
-        match (this, other) {
-            (
-                None
-                | Some(IdentValue {
-                    value: FlagOrType::Flag,
-                    ..
-                }),
-                value,
-            ) => Ok(value),
-            (
-                value,
-                None
-                | Some(IdentValue {
-                    value: FlagOrType::Flag,
-                    ..
-                }),
-            ) => Ok(value),
-            (
-                Some(IdentValue {
-                    value: FlagOrType::Type(this_value),
-                    ident: this_ident,
-                }),
-                Some(IdentValue {
-                    value: FlagOrType::Type(other_value),
-                    ident: other_ident,
-                }),
-            ) => T::aggregate(
-                Some(IdentValue {
-                    value: this_value,
-                    ident: this_ident,
-                }),
-                Some(IdentValue {
-                    value: other_value,
-                    ident: other_ident,
-                }),
-                error_msg,
-            )
-            .map(|o| {
-                o.map(|IdentValue { value, ident }| IdentValue {
-                    value: FlagOrType::Type(value),
-                    ident,
-                })
-            }),
-        }
-    }
-}
-
-/// Helper trait to generate sensible errors
-pub trait Error {
-    /// This is used to be able to create errors more easily. Mostly used
-    /// through the implementation for [`T: ToTokens`](ToTokens).
-    fn error(&self, message: impl Display) -> syn::Error;
-}
-
-impl<T> Error for T
-where
-    T: ToTokens,
-{
-    fn error(&self, message: impl Display) -> syn::Error {
-        syn::Error::new_spanned(self, message)
-    }
-}
-
-// impl<T: Error> Error for Option<T> {
-//
-// }
-
-#[derive(Debug, PartialEq, Eq)]
-/// Helper struct to hold a value and the ident of its property
-pub struct IdentValue<T> {
-    /// The value
-    pub value: T,
-    /// The ident
-    pub ident: Ident,
-}
-
-/// Macro to easily implement [`ConvertParsed`] for syn types
-macro_rules! convert_parsed {
-    ($(#[$meta:meta])* $type:path) => {
-        $(#[$meta])*
-        impl ConvertParsed for $type {
-            type Type = $type;
-            fn convert(s: Self) -> Result<Self> {
-                Ok(s)
-            }
-        }
-    };
-    [$($type:path),* $(,)?] => {
-        $(
-        impl ConvertParsed for $type {
-            type Type = $type;
-                fn convert(s: Self) -> Result<Self> {
-                    Ok(s)
-                }
-            }
-        )*
-    };
-    ($from:path => $to:path) => {
-        impl ConvertParsed<$from> for $to {
-            fn convert(value: $from) -> Result<$to> {
-                Ok(value.into())
-            }
-        }
-    };
-    ($from:path => $($to:path),+ : $with:path ) => {
-        $(
-            impl ConvertParsed for $to {
-                type Type = $from;
-                fn convert(value: $from) -> Result<$to> {
-                    Ok($with(&value))
-                }
-            }
-        )*
-    };
-    ($from:path => $($to:path),+ :? $with:path ) => {
-        $(
-            impl ConvertParsed for $to {
-                type Type = $from;
-                fn convert(value: $from) -> Result<$to> {
-                    $with(&value)
-                }
-            }
-        )*
-    };
-}
-
-impl<Output, Parsed> ConvertParsed for Option<Output>
-where
-    Output: ConvertParsed<Type = Parsed>,
-    Parsed: Error + Clone,
-{
-    type Type = Parsed;
-
-    fn convert(s: Parsed) -> Result<Self> {
-        Ok(Some(ConvertParsed::convert(s)?))
-    }
-
-    fn default_by_default() -> bool {
-        true
-    }
-
-    fn default() -> Self {
-        Default::default()
-    }
-}
-
-impl<Output, Parsed> ConvertParsed for Vec<Output>
-where
-    Output: ConvertParsed<Type = Parsed>,
-    Parsed: Clone,
-{
-    type Type = Array<Parsed>;
-
-    fn convert(array: Array<Parsed>) -> Result<Self> {
-        array.data.into_iter().map(ConvertParsed::convert).collect()
-    }
-
-    fn aggregate(
-        this: Option<IdentValue<Self::Type>>,
-        other: Option<IdentValue<Self::Type>>,
-        _: &str,
-    ) -> Result<Option<IdentValue<Self::Type>>> {
-        Ok(match (this, other) {
-            (None, None) => None,
-            (None, value) => value,
-            (value, None) => value,
-            (Some(mut this), Some(other)) => {
-                this.value.data.extend_from_slice(&other.value.data);
-                this.value.span = this
-                    .value
-                    .span
-                    .join(other.value.span)
-                    .unwrap_or(this.value.span);
-                // TODO figure out what to do with the idents
-                Some(this)
-            }
-        })
-    }
-}
-
-impl ConvertParsed for bool {
-    type Type = LitBool;
-
-    fn convert(value: Self::Type) -> Result<Self> {
-        Ok(value.value)
-    }
-
-    fn default_by_default() -> bool {
-        true
-    }
-
-    fn default() -> Self {
-        false
-    }
-
-    fn as_flag() -> Option<Self::Type> {
-        Some(parse_quote!(true))
-    }
-
-    fn aggregate(
-        this: Option<IdentValue<Self::Type>>,
-        other: Option<IdentValue<Self::Type>>,
-        _error_msg: &str,
-    ) -> Result<Option<IdentValue<Self::Type>>> {
-        Ok(this.or(other))
-    }
-}
-
-/// Helper struct to parse array literals:
-/// `[a, b, c]`
-#[derive(Clone)]
-pub struct Array<T> {
-    data: Vec<T>,
-    span: Span,
-}
-
-impl<T> Parse for Array<T>
-where
-    T: Parse,
-{
-    fn parse(input: syn::parse::ParseStream) -> Result<Self> {
-        let content;
-        let b = bracketed!(content in input);
-        let i = Punctuated::<T, Token!(,)>::parse_terminated(&content)?;
-        Ok(Self {
-            data: i.into_iter().collect(),
-            span: b.span.join(),
-        })
-    }
-}
-
-impl<T> Error for Array<T> {
-    fn error(&self, message: impl Display) -> syn::Error {
-        syn::Error::new(self.span, message)
-    }
-}
-
-convert_parsed!(Type);
-convert_parsed!(Path);
-convert_parsed!(Lit);
-convert_parsed![LitStr, LitByteStr, LitChar, LitInt, LitFloat, LitBool];
-convert_parsed!(Expr);
-convert_parsed![TokenTree, Group, Punct, Literal];
-
-// TODO make this warning better visable
-convert_parsed! {
-    /// Try to avoid using this, as it will consume everything behind, so it needs to be defined as the
-    /// last parameter.
-    ///
-    /// In the future there might be something to allow better handling of this (maybe by putting it
-    /// into `()`)
-    TokenStream
-}
-
-convert_parsed!(LitStr => String: LitStr::value);
-// TODO convert_parsed!(LitByteStr => Vec<u8>: LitByteStr::value);
-convert_parsed!(LitChar => char: LitChar::value);
-convert_parsed!(LitInt => u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, usize, isize:? LitInt::base10_parse);
-convert_parsed!(LitFloat => f32, f64:? LitFloat::base10_parse);
-
-// Some probably useless stuff
-convert_parsed![
-    Abi,
-    Abstract,
-    Plus,
-    PlusEq,
-    And,
-    AndAnd,
-    AndEq,
-    AngleBracketedGenericArguments,
-    As,
-    Async,
-    At,
-    Auto,
-    Await,
-    Not,
-    BareFnArg,
-    Become,
-    BinOp,
-    BoundLifetimes,
-    Break,
-    Caret,
-    CaretEq,
-    Colon,
-    PathSep,
-    Comma,
-    Const,
-    ConstParam,
-    Constraint,
-    Continue,
-    Crate,
-    DeriveInput,
-    Slash,
-    SlashEq,
-    Do,
-    Dollar,
-    Dot,
-    DotDot,
-    DotDotDot,
-    DotDotEq,
-    Dyn,
-    Else,
-    Enum,
-    Eq,
-    EqEq,
-    ExprArray,
-    ExprAssign,
-    ExprAsync,
-    ExprBinary,
-    ExprBlock,
-    ExprBreak,
-    ExprCall,
-    ExprCast,
-    ExprClosure,
-    ExprContinue,
-    ExprField,
-    ExprForLoop,
-    ExprIf,
-    ExprIndex,
-    ExprLet,
-    ExprLit,
-    ExprLoop,
-    ExprMacro,
-    ExprMatch,
-    ExprMethodCall,
-    ExprParen,
-    ExprPath,
-    ExprRange,
-    ExprReference,
-    ExprRepeat,
-    ExprReturn,
-    ExprStruct,
-    ExprTry,
-    ExprTryBlock,
-    ExprTuple,
-    ExprUnary,
-    ExprUnsafe,
-    ExprWhile,
-    ExprYield,
-    Extern,
-    FatArrow,
-    FieldsNamed,
-    FieldsUnnamed,
-    Final,
-    Fn,
-    For,
-    Ge,
-    GenericArgument,
-    GenericParam,
-    Generics,
-    Gt,
-    Ident,
-    If,
-    Impl,
-    In,
-    Index,
-    LArrow,
-    Le,
-    Let,
-    Lifetime,
-    Loop,
-    Lt,
-    Match,
-    Member,
-    Meta,
-    MetaList,
-    MetaNameValue,
-    Mod,
-    Move,
-    StarEq,
-    Mut,
-    Ne,
-    Or,
-    OrEq,
-    OrOr,
-    Override,
-    ParenthesizedGenericArguments,
-    PathSegment,
-    Pound,
-    Priv,
-    Pub,
-    Question,
-    RArrow,
-    Ref,
-    Percent,
-    PercentEq,
-    Return,
-    ReturnType,
-    SelfType,
-    SelfValue,
-    Semi,
-    Shl,
-    ShlEq,
-    Shr,
-    ShrEq,
-    Star,
-    Static,
-    Struct,
-    Minus,
-    MinusEq,
-    Super,
-    Tilde,
-    Trait,
-    TraitBound,
-    TraitBoundModifier,
-    Try,
-    TypeArray,
-    TypeBareFn,
-    TypeGroup,
-    TypeImplTrait,
-    TypeInfer,
-    TypeMacro,
-    TypeNever,
-    TypeParam,
-    TypeParamBound,
-    TypeParen,
-    TypePath,
-    TypePtr,
-    TypeReference,
-    TypeSlice,
-    TypeTraitObject,
-    TypeTuple,
-    Typeof,
-    UnOp,
-    Underscore,
-    Union,
-    Unsafe,
-    Unsized,
-    Use,
-    Variant,
-    Virtual,
-    Visibility,
-    Where,
-    WhereClause,
-    WherePredicate,
-    While,
-    Yield,
-    syn::Macro,
-    syn::token::Box,
-    syn::token::Default,
-    syn::token::Macro,
-    syn::token::Type,
-];
-
-#[cfg(feature = "syn-full")]
-mod syn_full {
-    use syn::{
-        Arm, Block, FieldValue, File, FnArg, ForeignItem, ForeignItemFn, ForeignItemMacro,
-        ForeignItemStatic, ForeignItemType, ImplItem, ImplItemConst, ImplItemMacro, ImplItemType,
-        Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemForeignMod, ItemImpl, ItemMacro,
-        ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse,
-        Label, Pat, RangeLimits, Receiver, Signature, Stmt, TraitItem, TraitItemConst,
-        TraitItemMacro, TraitItemType, UseTree,
-    };
-
-    use super::*;
-
-    convert_parsed![
-        Arm,
-        Block,
-        FieldValue,
-        File,
-        FnArg,
-        ForeignItem,
-        ForeignItemFn,
-        ForeignItemMacro,
-        ForeignItemStatic,
-        ForeignItemType,
-        ImplItem,
-        ImplItemConst,
-        ImplItemMacro,
-        ImplItemType,
-        Item,
-        ItemConst,
-        ItemEnum,
-        ItemExternCrate,
-        ItemFn,
-        ItemForeignMod,
-        ItemImpl,
-        ItemMacro,
-        ItemMod,
-        ItemStatic,
-        ItemStruct,
-        ItemTrait,
-        ItemTraitAlias,
-        ItemType,
-        ItemUnion,
-        ItemUse,
-        Label,
-        Pat,
-        RangeLimits,
-        Receiver,
-        Signature,
-        Stmt,
-        TraitItem,
-        TraitItemConst,
-        TraitItemMacro,
-        TraitItemType,
-        UseTree,
-    ];
 }
