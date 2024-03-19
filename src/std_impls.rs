@@ -1,9 +1,10 @@
 use manyhow::{span_range, SpanRanged};
 use syn::parse::discouraged::{AnyDelimiter, Speculative};
-use syn::parse::ParseStream;
+use syn::parse::{Parse, ParseStream};
 use syn::token::{Bracket, Paren};
 use syn::{bracketed, parenthesized, LitBool, LitChar, LitFloat, LitInt, LitStr, Result, Token};
 
+use super::FromAttr;
 use crate::from_partial::{Defaulting, FromPartial, Partial};
 use crate::parsing::{
     parse_name, AttributeBase, AttributeNamed, AttributePeekable, AttributePositional,
@@ -78,6 +79,16 @@ impl<T: AttributeNamed> AttributeNamed for Option<T> {
         })
     }
 }
+
+impl<T: FromAttr> FromAttr for Option<T> {
+    fn parse_partial(input: ParseStream) -> Result<Self::Partial> {
+        T::parse_partial(input)
+            .map(Some)
+            .map(Partial)
+            .map(Defaulting)
+    }
+}
+
 impl<T: FromPartial<P>, P> FromPartial<Partial<Vec<P>>> for Vec<T> {
     fn from(partial: Partial<Vec<P>>) -> Result<Self> {
         partial.0.into_iter().map(T::from).collect()
@@ -203,5 +214,15 @@ impl AttributeNamed for bool {
             }
         };
         Ok(Some(Named { value, name: ident }))
+    }
+}
+
+impl crate::FromAttr for bool {
+    fn parse_partial(input: ParseStream) -> Result<Self::Partial> {
+        if input.is_empty() {
+            Ok(Defaulting(true))
+        } else {
+            Ok(Defaulting(LitBool::parse(input)?.value()))
+        }
     }
 }

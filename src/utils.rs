@@ -198,3 +198,13 @@ impl<T: AttributeValue> AttributeNamed for FlagOrValue<T> {
         Ok(Some(Named { value, name: ident }))
     }
 }
+
+impl<T: FromAttr> FromAttr for FlagOrValue<T> {
+    fn parse_partial(input: ParseStream) -> Result<Self::Partial> {
+        if input.is_empty() {
+            Ok(Partial(FlagOrValue::Flag))
+        } else {
+            T::parse_partial(input).map(FlagOrValue::Value).map(Partial)
+        }
+    }
+}

@@ -20,15 +20,15 @@ use syn::{parenthesized, Result, Token};
 use crate::from_partial::FromPartial;
 use crate::FromAttr;
 
-/// Values that can be parsed named, e.g. `name(<value>)`, `name = <value>`,
-/// `name` (as flag).
+/// Values that can be parsed named, e.g. `<name>(<value>)`, `<name> = <value>`,
+/// `<name>` (as flag).
 ///
 /// This is the default parsing mode used for fields in derived [`FromAttr`]
 /// implementations.
 pub trait AttributeNamed: AttributeBase {
     /// What open delimiter to use when providing error messages.
     ///
-    /// For `<key> = <value>`, this is `" = "`, for `<function>(<like>)`, it is
+    /// For `<name> = <value>`, this is `" = "`, for `<function>(<like>)`, it is
     /// `"("`.
     ///
     /// As named attributes can allow both `<name> = <value>` and
@@ -37,7 +37,7 @@ pub trait AttributeNamed: AttributeBase {
     const PREFERRED_OPEN_DELIMITER: &'static str = " = ";
     /// What close delimiter to use when providing error messages.
     ///
-    /// For `<key> = <value>`, this is `""`, for `<function>(<like>)`, it is
+    /// For `<name> = <value>`, this is `""`, for `<function>(<like>)`, it is
     /// `")"`.
     ///
     /// As named attributes can allow both `<name> = <value>` and
@@ -48,7 +48,7 @@ pub trait AttributeNamed: AttributeBase {
     /// Parses an attribute containing `Self` called `name`.
     ///
     /// While this function can be implemented freely, the provided
-    /// implementations support `<key> = <value>`, `<function>(<like>)` and
+    /// implementations support `<name> = <value>`, `<function>(<like>)` and
     /// `<flag>`.
     ///
     /// **Note:** This needs to stop parsing at the end of the value, before a
@@ -82,7 +82,7 @@ pub trait AttributePositional: AttributeBase {
 /// implementations for [`FromAttr`], [`AttributeNamed`] and, if you implement
 /// the marker trait [`PositionalValue`], [`AttributePositional`] as well.
 ///
-/// For named attributes by default it will support both `<key> = <value>` and
+/// For named attributes by default it will support both `<name> = <value>` and
 /// `<function>(<like>)`, though this can be tweaked in the implementation.
 pub trait AttributeValue: AttributeBase {
     /// Printed when not encountering a `(` or `=` respectively while trying to
@@ -90,7 +90,7 @@ pub trait AttributeValue: AttributeBase {
     const EXPECTED: &'static str = "expected `=` or `(`";
     /// What open delimiter to use when providing error messages.
     ///
-    /// For `<key> = <value>`, this is `" = "`, for `<function>(<like>)`, it is
+    /// For `<name> = <value>`, this is `" = "`, for `<function>(<like>)`, it is
     /// `"("`.
     ///
     /// As named attributes can allow both `<name> = <value>` and
@@ -99,7 +99,7 @@ pub trait AttributeValue: AttributeBase {
     const PREFERRED_OPEN_DELIMITER: &'static str = " = ";
     /// What close delimiter to use when providing error messages.
     ///
-    /// For `<key> = <value>`, this is `""`, for `<function>(<like>)`, it is
+    /// For `<name> = <value>`, this is `""`, for `<function>(<like>)`, it is
     /// `")"`.
     ///
     /// As named attributes can allow both `<name> = <value>` and

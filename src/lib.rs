@@ -161,6 +161,9 @@ pub mod from_partial;
 pub use from_partial::FromPartial;
 
 mod tmp {
+    use quote::ToTokens;
+    use syn::Meta;
+
     use super::*;
     /// The trait you actually derive on your attribute struct.
     ///
@@ -223,7 +226,7 @@ mod tmp {
             attrs
                 .into_iter()
                 .filter(|attr| Self::is_ident(attr.borrow().path()))
-                .map(|attr| attr.borrow().parse_args_with(Self::parse_partial))
+                .map(Self::from_attribute_partial)
                 .try_fold(None, |acc, item| {
                     Self::join(
                         acc,
@@ -253,6 +256,21 @@ mod tmp {
         /// Use this if you are implementing an attribute macro, and need to
         /// remove your helper attributes.
         ///
+        /// ```
+        /// use syn::parse_quote;
+        /// use attribute_derive::FromAttr;
+        /// let mut attrs = vec![
+        ///     parse_quote!(#[ignored]), parse_quote!(#[test]),
+        ///     parse_quote!(#[also_ignored]), parse_quote!(#[test])
+        /// ];
+        /// #[derive(FromAttr)]
+        /// #[attribute(ident = test)]
+        /// struct Test {}
+        /// assert!(Test::remove_attributes(&mut attrs).is_ok());
+        ///
+        /// assert_eq!(attrs, vec![parse_quote!(#[ignored]), parse_quote!(#[also_ignored])]);
+        /// ```
+        ///
         /// # Errors
         /// Fails with a [`syn::Error`], so you can conveniently return that as
         /// a compiler error in a proc macro in the following cases
@@ -276,6 +294,24 @@ mod tmp {
                 }
                 None
             }))
+        }
+
+        /// Parses from a single attribute. Ignoring the name.
+        ///  
+        /// This is available even without `#[attribute(ident = ...)]`, because
+        /// it ignores the attribute's path, allowing to use it to parse e.g.
+        /// literals:
+        /// ```
+        /// use attribute_derive::FromAttr;
+        ///
+        /// let attr: syn::Attribute = syn::parse_quote!(#[test = "hello"]);
+        /// assert_eq!(String::from_attribute(attr).unwrap(), "hello");
+        ///
+        /// let attr: syn::Attribute = syn::parse_quote!(#[test]);
+        /// assert_eq!(bool::from_attribute(attr).unwrap(), true);
+        /// ```
+        fn from_attribute(attr: impl Borrow<syn::Attribute>) -> Result<Self> {
+            Self::from_attribute_partial(attr).and_then(Self::from)
         }
 
         #[doc(hidden)]
@@ -309,6 +345,20 @@ mod tmp {
         /// - A non aggregating parameter is specified multiple times
         fn parse_input(input: ParseStream) -> Result<Self> {
             Self::parse_partial(input).and_then(Self::from)
+        }
+
+        /// Like [`parse_partial`](Self::parse_partial) but instead takes an
+        /// [`Attribute`](syn::Attribute).
+        ///
+        /// This allows it to support all three, `#[flag]`, `#[function(like)]`
+        /// and `#[name = value]` attributes.
+        fn from_attribute_partial(attr: impl Borrow<syn::Attribute>) -> Result<Self::Partial> {
+            let tokens = match attr.borrow().meta {
+                Meta::Path(_) => TokenStream::new(),
+                Meta::List(ref list) => list.tokens.clone(),
+                Meta::NameValue(ref nv) => nv.value.to_token_stream(),
+            };
+            Self::parse_partial.parse2(tokens)
         }
 
         /// Actual implementation for parsing the attribute. This is the only

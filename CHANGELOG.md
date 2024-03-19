@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+### Added
+- `from_attribute` and `from_attribue_partial` to `FromAttr`.
+
+### Fixed
+- `FromAttr` did not support `#[flag]` or `#[name = value]` attribute styles at the root.
+
 ## [0.9.0] - 2024-03-17
 ### Added
 - Attributes can now be nested, i.e. `#[outer(inner(key = value))]`.
@@ -21,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.1] - 2023-09-27
 ### Added
-- Added `FlagOrValue::{is_none, is_flag, is_value, into_value, as_value}`
+- `FlagOrValue::{is_none, is_flag, is_value, into_value, as_value}`
 
 ## [0.8.0] - 2023-09-18
 ### Changed
@@ -42,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bool` now allows specifying a flag multiple times.
 
 ### Fixed
-- Specifying a param multiple times in the same attribute was ignored.
+- Specifying a parameter multiple times in the same attribute was ignored.
 
 ## [0.6.1] - 2023-05-21
 - Updated dependencies

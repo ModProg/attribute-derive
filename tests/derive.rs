@@ -1,5 +1,5 @@
 use attribute_derive::parsing::AttributeNamed;
-use attribute_derive::FromAttr;
+use attribute_derive::{FlagOrValue, FromAttr};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::{ParseStream, Parser};
@@ -187,4 +187,35 @@ fn sub_attr() {
             .value,
         "a"
     )
+}
+
+#[test]
+fn literal_attrs() {
+    let attr: Attribute = parse_quote!(#[test = "hello"]);
+    assert_eq!(String::from_attribute(attr).unwrap(), "hello");
+    let attr: Attribute = parse_quote!(#[test = "hello"]);
+    assert_eq!(
+        Option::<String>::from_attribute(attr).unwrap().unwrap(),
+        "hello"
+    );
+
+    let attr: Attribute = parse_quote!(#[test = false]);
+    assert!(!bool::from_attribute(attr).unwrap());
+    let attr: Attribute = parse_quote!(#[test]);
+    assert!(bool::from_attribute(attr).unwrap());
+
+    let attr: Attribute = parse_quote!(#[test = 1]);
+    assert_eq!(
+        FlagOrValue::<usize>::from_attribute(attr)
+            .unwrap()
+            .into_value()
+            .unwrap(),
+        1
+    );
+    let attr: Attribute = parse_quote!(#[test]);
+    assert!(
+        FlagOrValue::<usize>::from_attribute(attr)
+            .unwrap()
+            .is_flag()
+    );
 }
