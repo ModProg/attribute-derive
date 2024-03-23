@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - `from_attribute` and `from_attribue_partial` to `FromAttr`.
+- Support for tuple structs.
 
 ### Fixed
 - `FromAttr` did not support `#[flag]` or `#[name = value]` attribute styles at the root.

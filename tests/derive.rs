@@ -219,3 +219,40 @@ fn literal_attrs() {
             .is_flag()
     );
 }
+
+#[test]
+fn tuple() {
+    #[derive(FromAttr, PartialEq, Debug)]
+    #[attribute(ident = flag)]
+    struct Flag(bool);
+
+    let attr: Attribute = parse_quote!(#[flag]);
+    assert_eq!(Flag::from_attribute(attr).unwrap(), Flag(true));
+    let attr: Attribute = parse_quote!(#[flag = true]);
+    assert_eq!(Flag::from_attribute(attr).unwrap(), Flag(true));
+    let attr: Attribute = parse_quote!(#[flag(false)]);
+    assert_eq!(Flag::from_attribute(attr).unwrap(), Flag(false));
+
+    #[derive(FromAttr, PartialEq, Debug)]
+    #[attribute(ident = name_value)]
+    struct NameValue(String);
+    let attr: Attribute = parse_quote!(#[name_value = "value"]);
+    assert_eq!(
+        NameValue::from_attribute(attr).unwrap(),
+        NameValue("value".into())
+    );
+    let attr: Attribute = parse_quote!(#[name_value("value")]);
+    assert_eq!(
+        NameValue::from_attribute(attr).unwrap(),
+        NameValue("value".into())
+    );
+
+    #[derive(FromAttr, PartialEq, Debug)]
+    #[attribute(ident = multiple)]
+    struct Multiple(bool, String);
+    let attr: Attribute = parse_quote!(#[multiple(true, "value")]);
+    assert_eq!(
+        Multiple::from_attribute(attr).unwrap(),
+        Multiple(true, "value".into())
+    );
+}

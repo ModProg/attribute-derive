@@ -34,20 +34,42 @@
 //!
 //! Any type that for [`AttributeNamed`] or [`AttributePositional`] are
 //! implemented respectively are supported. These should be the general types
-//! that syn supports like [`LitStr`](struct@LitStr) or [`Type`] or that have a
-//! direct equivalent in those like [`String`], [`char`] or [`f32`]. A special
-//! treatment have [`Vecs`](Vec) which are parsed as either `name = [a, b, c]`
-//! or `name(a, b, c)` and [`Options`](Option) that will be [`None`] if not
-//! specified and [`Some`] when the value is specified via the attribute. It is
-//! not specified via `Some(value)` but as just `value`. [`Bools`](bool) are
+//! that [`syn`] supports like [`LitStr`](struct@LitStr) or [`Type`] or that
+//! have a direct equivalent in those like [`String`], [`char`] or [`f32`]. A
+//! special treatment have [`Vecs`](Vec) which are parsed as either `name = [a,
+//! b, c]` or `name(a, b, c)` and [`Options`](Option) that will be [`None`] if
+//! not specified and [`Some`] when the value is specified via the attribute. It
+//! is not specified via `Some(value)` but as just `value`. [`Bools`](bool) are
 //! used for flags, i.e., without a value. Most should just behave as expected,
 //! see [`parsing`] for details.
+//!
+//! Tuple structs can derive [`FromAttr`] as well, but all fields will be
+//! positional. Tuples with a single field
+//! ([new types](https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html))
+//! will copy the behavior of the contained field, e.g. for [`bool`]:
+//!
+//! ```
+//! use attribute_derive::FromAttr;
+//!
+//! #[derive(FromAttr, PartialEq, Debug)]    
+//! #[attribute(ident = flag)]
+//! struct Flag(bool);
+//!
+//! let attr: Attribute = parse_quote!(#[flag]);
+//! assert_eq!(Flag::from_attribute(attr).unwrap(), Flag(true));
+//!
+//! let attr: Attribute = parse_quote!(#[flag = true]);
+//! assert_eq!(Flag::from_attribute(attr).unwrap(), Flag(true));
+//!
+//! let attr: Attribute = parse_quote!(#[flag(false)]);
+//! assert_eq!(Flag::from_attribute(attr).unwrap(), Flag(false));
+//! ```
 //!
 //! # Attributes
 //!
 //! The parsing of attributes can be modified with the following parameters via
 //! the `#[attribute(<params>)]` attribute. All of them are optional. Error
-//! messages are formatted using [interpolator], and only support display and on
+//! messages are formatted using [interpolator], and only support display and
 //! lists `i` formatting. See [interpolator] docs for details.
 //!
 //! ### Struct
