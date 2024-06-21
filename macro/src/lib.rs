@@ -10,7 +10,7 @@ use proc_macro2::{Literal, Span, TokenStream};
 use proc_macro_utils::{TokenParser, TokenStream2Ext};
 use quote::{format_ident, ToTokens};
 use quote_use::quote_use as quote;
-use syn::spanned::Spanned;
+use syn::{spanned::Spanned, Visibility};
 use syn::{DataStruct, DeriveInput, Field, Fields, Generics, Ident, LitStr, Type};
 
 const ATTRIBUTE_IDENT: &str = "attribute";
@@ -743,7 +743,12 @@ fn parse_comma() -> TokenStream {
     }
 }
 
-fn partial_attribute(partial: &Ident, fields: &[AttrField], generics: &Generics) -> Result {
+fn partial_attribute(
+    partial: &Ident,
+    vis: &Visibility,
+    fields: &[AttrField],
+    generics: &Generics,
+) -> Result {
     let Some(first_field) = fields.first() else {
         return Ok(quote!(#[derive(Default)] struct #partial #generics {}));
     };
@@ -755,7 +760,7 @@ fn partial_attribute(partial: &Ident, fields: &[AttrField], generics: &Generics)
     };
     Ok(quote! {
         #[derive(Default)]
-        struct #partial #generics #fields
+        #vis struct #partial #generics #fields
     })
 }
 
@@ -771,6 +776,7 @@ pub fn attribute_derive(input: DeriveInput) -> Result {
 pub fn from_attr_derive(
     DeriveInput {
         attrs,
+        vis,
         ident,
         generics,
         data,
@@ -814,7 +820,7 @@ pub fn from_attr_derive(
 
     let conflicts = conflicts.to_tokens(struct_error)?;
 
-    let partial_struct = partial_attribute(partial_ident, &fields, &generics)?;
+    let partial_struct = partial_attribute(partial_ident, &vis, &fields, &generics)?;
 
     let error_invalid_name = struct_error.unknown_field_error(&fields)?;
 
