@@ -49,6 +49,7 @@
 //! will copy the behavior of the contained field, e.g. for [`bool`]:
 //!
 //! ```
+//! use syn::{Attribute, parse_quote};
 //! use attribute_derive::FromAttr;
 //!
 //! #[derive(FromAttr, PartialEq, Debug)]    

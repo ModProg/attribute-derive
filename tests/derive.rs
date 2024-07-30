@@ -256,3 +256,18 @@ fn tuple() {
         Multiple(true, "value".into())
     );
 }
+
+#[test]
+fn attribute_ident_option() {
+    #[derive(FromAttr)]
+    #[attribute(ident = test)]
+    struct Test(String);
+
+    let attr: Attribute = parse_quote!(#[test("hello")]);
+    assert_eq!(
+        Option::<Test>::from_attributes([attr]).unwrap().unwrap().0,
+        "hello"
+    );
+    let attr: Attribute = parse_quote!(#[not_test("hello")]);
+    assert!(Option::<Test>::from_attributes([attr]).unwrap().is_none());
+}
