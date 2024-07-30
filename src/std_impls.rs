@@ -10,6 +10,7 @@ use crate::parsing::{
     parse_name, AttributeBase, AttributeNamed, AttributePeekable, AttributePositional,
     AttributeValue, Named, PositionalValue, SpannedValue,
 };
+use crate::AttributeIdent;
 
 macro_rules! ParseAs {
     ($parse:ty => $($type:ty),+; $value:ident $($tt:tt)*) => {
@@ -87,6 +88,10 @@ impl<T: FromAttr> FromAttr for Option<T> {
             .map(Partial)
             .map(Defaulting)
     }
+}
+
+impl<T: AttributeIdent> AttributeIdent for Option<T> {
+    const IDENTS: &'static [&'static str] = T::IDENTS;
 }
 
 impl<T: FromPartial<P>, P> FromPartial<Partial<Vec<P>>> for Vec<T> {
