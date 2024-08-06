@@ -127,23 +127,20 @@
 //!
 //! For helper attributes there is:
 //! - [`FromAttr::from_attributes`] which takes in an [`IntoIterator<Item = &'a
-//! syn::Attribute`](syn::Attribute)
-//! (e.g. a [`&Vec<syn::Attribute>`](syn::Attribute)). Most useful for derive
-//! macros.
+//!   syn::Attribute`](syn::Attribute) (e.g. a
+//!   [`&Vec<syn::Attribute>`](syn::Attribute)). Most useful for derive macros.
 //! - [`FromAttr::remove_attributes`] which takes a [`&mut
-//!   Vec<syn::Attribute>`](syn::Attribute)
-//! and does not only parse the attributes, but also removes those matching.
-//! Useful for helper attributes for attribute macros, where the helper
-//! attributes need to be removed.
+//!   Vec<syn::Attribute>`](syn::Attribute) and does not only parse the
+//!   attributes, but also removes those matching. Useful for helper attributes
+//!   for attribute macros, where the helper attributes need to be removed.
 //!
 //! For parsing a single [`TokenStream`] e.g. for parsing the proc macro input
 //! there are two ways:
 //!
 //! - [`FromAttr::from_args`] taking in a [`TokenStream`]
 //! - As `derive(FromAttr)` also derives [`Parse`] so you can use the
-//!   [parse](mod@syn::parse) API,
-//! e.g. with [`parse_macro_input!(tokens as
-//! Attribute)`](syn::parse_macro_input!).
+//!   [parse](mod@syn::parse) API, e.g. with [`parse_macro_input!(tokens as
+//!   Attribute)`](syn::parse_macro_input!).
 //!
 //! [interpolator]: https://docs.rs/interpolator/latest/interpolator/
 use std::borrow::Borrow;

@@ -1,5 +1,5 @@
 use attribute_derive::parsing::AttributeNamed;
-use attribute_derive::{FlagOrValue, FromAttr};
+use attribute_derive::{FlagOrValue, FromAttr, AttributeIdent};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::{ParseStream, Parser};
@@ -270,4 +270,23 @@ fn attribute_ident_option() {
     );
     let attr: Attribute = parse_quote!(#[not_test("hello")]);
     assert!(Option::<Test>::from_attributes([attr]).unwrap().is_none());
+}
+
+#[test]
+#[allow(unused)]
+fn attribute_ident_default() {
+    #[derive(FromAttr)]
+    #[attribute(ident = a)]
+    struct WithIdent(String);
+
+    assert_eq!(WithIdent::IDENTS, ["a"]);
+    
+    #[derive(FromAttr)]
+    #[attribute(!ident)]
+    struct WithOutIdent(String);
+    static_assertions::assert_not_impl_any!(WithOutIdent: AttributeIdent);
+
+    #[derive(FromAttr)]
+    struct WithDefault(String);
+    assert_eq!(WithDefault::IDENTS, ["with_default"]);
 }

@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- derive `AttributeIdent` by default, converting the `StructIdent` to `snake_case`
 - `AttributeIdent` implementation for `Option<impl AttributeIdent>`
 
 ## [0.9.2] - 2024-06-22

@@ -18,7 +18,7 @@ edition = "2021"
 
 [dependencies]
 derive-where = "1.2.7"
-manyhow = "0.11.2"
+manyhow = "0.11.3"
 proc-macro2 = "1"
 quote = "1"
 syn = "2"
@@ -34,6 +34,7 @@ path = "macro"
 [dev-dependencies]
 insta = "1.39.0"
 quote = "1"
+static_assertions = "1.1.0"
 syn = { version = "2", features = ["extra-traits"] }
 
 [package.metadata.release]

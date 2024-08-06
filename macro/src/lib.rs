@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::iter;
+use std::ops::Range;
 
 use collection_literals::hash;
 use interpolator::{format, Formattable};
@@ -10,8 +11,8 @@ use proc_macro2::{Literal, Span, TokenStream};
 use proc_macro_utils::{TokenParser, TokenStream2Ext};
 use quote::{format_ident, ToTokens};
 use quote_use::quote_use as quote;
-use syn::{spanned::Spanned, Visibility};
-use syn::{DataStruct, DeriveInput, Field, Fields, Generics, Ident, LitStr, Type};
+use syn::spanned::Spanned;
+use syn::{DataStruct, DeriveInput, Field, Fields, Generics, Ident, LitStr, Type, Visibility};
 
 const ATTRIBUTE_IDENT: &str = "attribute";
 
@@ -170,8 +171,13 @@ struct StructAttrs {
 }
 
 impl StructAttrs {
-    fn from_attrs(attrs: impl IntoIterator<Item = syn::Attribute>) -> Result<Self> {
-        const VALID_FORMAT: &str = r#"expected `#[attribute(ident=attribute_name, aliases=[alias1, alias2], error="..", error(unknown_field="..", unknown_field_single="..", unknown_field_empty="..", duplicate_field="..", missing_field="..", field_help=".."))]`"#;
+    fn from_attrs(
+        struct_ident: &Ident,
+        attrs: impl IntoIterator<Item = syn::Attribute>,
+    ) -> Result<Self> {
+        const VALID_FORMAT: &str = r#"expected `#[attribute(ident=attribute_name/!ident, aliases=[alias1, alias2], error="..", error(unknown_field="..", unknown_field_single="..", unknown_field_empty="..", duplicate_field="..", missing_field="..", field_help=".."))]`"#;
+
+        let mut ident_span: Option<Range<Span>> = None;
         let mut ident: Option<Ident> = None;
         let mut aliases: Vec<String> = vec![];
         let mut error = StructError::Specific(Default::default());
@@ -188,105 +194,152 @@ impl StructAttrs {
                 .clone()
                 .parser();
             while !parser.is_empty() {
-                let field = parser
-                    .next_ident()
-                    .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
-                match field.to_string().as_str() {
-                    "ident" => {
-                        parser
-                            .next_tt_eq()
-                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
-                        ident = Some(
-                            parser
-                                .next_ident()
-                                .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?,
-                        )
-                    }
-                    "aliases" => {
-                        parser
-                            .next_tt_eq()
-                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
-                        let mut parser = parser
-                            .next_bracketed()
-                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?
-                            .stream()
-                            .parser();
-                        aliases.extend(iter::from_fn(|| {
-                            _ = parser.next_tt_comma();
-                            parser.next_ident().map(|t| t.to_string())
-                        }));
-                        if !parser.is_empty() {
-                            bail!("{VALID_FORMAT}")
+                eprintln!("{}", parser.to_token_stream());
+                if let Some(not) = parser.next_tt_not() {
+                    if let Some(kw) = parser.next_keyword("ident") {
+                        if let Some(ident_span) = ident_span {
+                            bail!(
+                                error_message!(ident_span, "ident is specified twice")
+                                    + error_message!(
+                                        not.span()..kw.span(),
+                                        "ident was already specified"
+                                    )
+                            )
+                        } else {
+                            ident_span = Some(not.span()..kw.span());
                         }
                     }
-                    "error" => {
-                        if parser.next_tt_eq().is_some() {
-                            error = StructError::Generic(
-                                FormatString::parse(parser)
+                } else {
+                    let field = parser
+                        .next_ident()
+                        .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
+                    match field.to_string().as_str() {
+                        "ident" => {
+                            parser
+                                .next_tt_eq()
+                                .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
+                            ident = Some(
+                                parser
+                                    .next_ident()
                                     .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?,
                             );
-                        } else {
-                            let parser = &mut parser
-                                .next_parenthesized()
+                            if let Some(ident_span) = ident_span {
+                                bail!(
+                                    error_message!(ident_span, "ident is specified twice")
+                                        + error_message!(
+                                            field.span()..ident.unwrap().span(),
+                                            "ident was already specified"
+                                        )
+                                )
+                            }
+                        }
+                        "aliases" => {
+                            parser
+                                .next_tt_eq()
+                                .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
+                            let mut parser = parser
+                                .next_bracketed()
                                 .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?
                                 .stream()
                                 .parser();
-                            let error = if let StructError::Specific(error) = &mut error {
-                                error
-                            } else {
-                                error = StructError::Specific(Default::default());
-                                if let StructError::Specific(error) = &mut error {
-                                    error
-                                } else {
-                                    unreachable!()
-                                }
-                            };
-                            while !parser.is_empty() {
-                                let field = parser
-                                    .next_ident()
-                                    .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
-                                let mut string = |f: &mut _| -> Result<()> {
-                                    parser
-                                        .next_tt_eq()
-                                        .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
-                                    *f = FormatString::parse(parser)
-                                        .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
-                                    Ok(())
-                                };
-                                match field.to_string().as_str() {
-                                    "unknown_field" => string(&mut error.unknown_field),
-                                    "unknown_field_empty" => string(&mut error.unknown_field_empty),
-                                    "unknown_field_single" => {
-                                        string(&mut error.unknown_field_single)
-                                    }
-                                    "duplicate_field" => string(&mut error.duplicate_field),
-                                    "missing_field" => string(&mut error.missing_field),
-                                    "field_help" => string(&mut error.field_help),
-                                    "conflict" => string(&mut error.conflict),
-                                    _ => bail!(field, "{VALID_FORMAT}"),
-                                }?;
+                            aliases.extend(iter::from_fn(|| {
                                 _ = parser.next_tt_comma();
+                                parser.next_ident().map(|t| t.to_string())
+                            }));
+                            if !parser.is_empty() {
+                                bail!("{VALID_FORMAT}")
                             }
                         }
+                        "error" => {
+                            if parser.next_tt_eq().is_some() {
+                                error = StructError::Generic(
+                                    FormatString::parse(parser)
+                                        .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?,
+                                );
+                            } else {
+                                let parser = &mut parser
+                                    .next_parenthesized()
+                                    .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?
+                                    .stream()
+                                    .parser();
+                                let error = if let StructError::Specific(error) = &mut error {
+                                    error
+                                } else {
+                                    error = StructError::Specific(Default::default());
+                                    if let StructError::Specific(error) = &mut error {
+                                        error
+                                    } else {
+                                        unreachable!()
+                                    }
+                                };
+                                while !parser.is_empty() {
+                                    let field = parser
+                                        .next_ident()
+                                        .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
+                                    let mut string = |f: &mut _| -> Result<()> {
+                                        parser
+                                            .next_tt_eq()
+                                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
+                                        *f = FormatString::parse(parser)
+                                            .ok_or_else(|| ErrorMessage::call_site(VALID_FORMAT))?;
+                                        Ok(())
+                                    };
+                                    match field.to_string().as_str() {
+                                        "unknown_field" => string(&mut error.unknown_field),
+                                        "unknown_field_empty" => {
+                                            string(&mut error.unknown_field_empty)
+                                        }
+                                        "unknown_field_single" => {
+                                            string(&mut error.unknown_field_single)
+                                        }
+                                        "duplicate_field" => string(&mut error.duplicate_field),
+                                        "missing_field" => string(&mut error.missing_field),
+                                        "field_help" => string(&mut error.field_help),
+                                        "conflict" => string(&mut error.conflict),
+                                        _ => bail!(field, "{VALID_FORMAT}"),
+                                    }?;
+                                    _ = parser.next_tt_comma();
+                                }
+                            }
+                        }
+                        // "duplicate" => {
+                        //     parser.next_eq()                                .ok_or_else(||
+                        // ErrorMessage::call_site(VALID_FORMAT))?;     let strategy
+                        // = parser.next_ident()                                .ok_or_else(||
+                        // ErrorMessage::call_site(VALID_FORMAT))?;     duplicate =
+                        // match strategy.to_string().as_str() {
+                        //         "AggregateOrError" => DuplicateStrategy::AggregateOrError,
+                        //         "Error" => DuplicateStrategy::Error,
+                        //         "AggregateOrOverride" => DuplicateStrategy::AggregateOrOverride,
+                        //         "Override" => DuplicateStrategy::Override,
+                        //         _ => abort!(strategy, VALID_FORMAT),
+                        //     }
+                        // }
+                        _ => bail!(field, "{VALID_FORMAT}"),
                     }
-                    // "duplicate" => {
-                    //     parser.next_eq()                                .ok_or_else(||
-                    // ErrorMessage::call_site(VALID_FORMAT))?;     let strategy
-                    // = parser.next_ident()                                .ok_or_else(||
-                    // ErrorMessage::call_site(VALID_FORMAT))?;     duplicate =
-                    // match strategy.to_string().as_str() {
-                    //         "AggregateOrError" => DuplicateStrategy::AggregateOrError,
-                    //         "Error" => DuplicateStrategy::Error,
-                    //         "AggregateOrOverride" => DuplicateStrategy::AggregateOrOverride,
-                    //         "Override" => DuplicateStrategy::Override,
-                    //         _ => abort!(strategy, VALID_FORMAT),
-                    //     }
-                    // }
-                    _ => bail!(field, "{VALID_FORMAT}"),
                 }
                 _ = parser.next_tt_comma();
             }
         }
+
+        if ident_span.is_none() && ident.is_none() {
+            let ident_string = struct_ident.to_string();
+            let mut out = String::with_capacity(ident_string.len());
+            let mut ident_string = ident_string.chars();
+
+            out.extend(ident_string.next().into_iter().flat_map(char::to_lowercase));
+            for c in ident_string {
+                if c.is_uppercase() {
+                    out.push('_');
+                    out.extend(c.to_lowercase());
+                } else {
+                    out.push(c);
+                }
+            }
+
+            ident = Some(Ident::new(&out, struct_ident.span()));
+        }
+
         Ok(Self {
             ident,
             aliases,
@@ -790,11 +843,11 @@ pub fn from_attr_derive(
         mut aliases,
         error: ref struct_error,
         // duplicate,
-    } = StructAttrs::from_attrs(attrs)?;
+    } = StructAttrs::from_attrs(&ident, attrs)?;
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    if let Some(attribute_ident) = attribute_ident.clone() {
+    if let Some(ref attribute_ident) = attribute_ident {
         aliases.insert(0, attribute_ident.to_string());
     }
 
@@ -815,7 +868,7 @@ pub fn from_attr_derive(
             fields: fields @ (Fields::Named(_) | Fields::Unnamed(_)),
             ..
         }) => AttrField::parse_fields(fields, struct_error, attribute_ident)?,
-        _ => bail!("only works on structs with named fields"),
+        _ => bail!("only works on structs with fields"),
     };
 
     let conflicts = conflicts.to_tokens(struct_error)?;
