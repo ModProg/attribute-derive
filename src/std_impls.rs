@@ -172,7 +172,6 @@ impl<T: AttributePositional> AttributeValue for Vec<T> {
                 span: b.span.join().span_range(),
             })
         } else {
-            dbg!(input);
             Err(input.error("expected `[` or `(`"))
         }
     }

@@ -194,7 +194,6 @@ impl StructAttrs {
                 .clone()
                 .parser();
             while !parser.is_empty() {
-                eprintln!("{}", parser.to_token_stream());
                 if let Some(not) = parser.next_tt_not() {
                     if let Some(kw) = parser.next_keyword("ident") {
                         if let Some(ident_span) = ident_span {

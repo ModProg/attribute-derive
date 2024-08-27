@@ -44,7 +44,8 @@ shared-version = true
 file = "CHANGELOG.md"
 search = '## \[Unreleased\]'
 replace = """
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
 ## [{{version}}] - {{date}}\
 """
 [[package.metadata.release.pre-release-replacements]]
