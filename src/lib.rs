@@ -155,13 +155,13 @@ use manyhow::SpanRanged;
 use parsing::*;
 use parsing::{AttributeBase, SpannedValue};
 use proc_macro2::{Span, TokenStream};
+use quote::ToTokens;
 use syn::parse::{ParseStream, Parser, Result};
 #[cfg(doc)]
 use syn::{parse::Parse, LitStr, Type};
-use syn::{Error, Path};
-#[doc(hidden)]
-pub use tmp::FromAttr as Attribute;
-pub use tmp::FromAttr;
+use syn::{Error, Meta, Path};
+
+extern crate self as attribute_derive;
 
 #[doc(hidden)]
 pub mod __private {
@@ -180,212 +180,206 @@ pub mod parsing;
 pub mod from_partial;
 pub use from_partial::FromPartial;
 
-mod tmp {
-    use quote::ToTokens;
-    use syn::Meta;
-
-    use super::*;
-    /// The trait you actually derive on your attribute struct.
+/// The trait you actually derive on your attribute struct.
+///
+/// Basic gist is a struct like this:
+/// ```
+/// # use attribute_derive::FromAttr;
+/// # use syn::Type;
+/// #[derive(FromAttr)]
+/// #[attribute(ident = collection)]
+/// #[attribute(error(missing_field = "`{field}` was not specified"))]
+/// struct CollectionAttribute {
+///     // Options are optional by default (will be set to None if not specified)
+///     authority: Option<String>,
+///     name: String,
+///     // Any type implementing default can be flagged as optional
+///     // This will be set to Vec::default() when not specified
+///     #[attribute(optional)]
+///     views: Vec<Type>,
+///     // Booleans can be used without assiging a value. as a flag.
+///     // If omitted they are set to false
+///     some_flag: bool,
+/// }
+/// ```
+///
+/// Will be able to parse an attribute like this:
+/// ```text
+/// #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()], some_flag)]
+/// ```
+pub trait FromAttr: Sized + AttributeBase {
+    /// Parses an [`IntoIterator`] of [`syn::Attributes`](syn::Attribute)
+    /// e.g. [`Vec<Attribute>`](Vec). Only available if you specify
+    /// the attribute ident: `#[attribute(ident="<ident>")]` when
+    /// using the derive macro.
     ///
-    /// Basic gist is a struct like this:
-    /// ```
-    /// # use attribute_derive::FromAttr;
-    /// # use syn::Type;
-    /// #[derive(FromAttr)]
-    /// #[attribute(ident = collection)]
-    /// #[attribute(error(missing_field = "`{field}` was not specified"))]
-    /// struct CollectionAttribute {
-    ///     // Options are optional by default (will be set to None if not specified)
-    ///     authority: Option<String>,
-    ///     name: String,
-    ///     // Any type implementing default can be flagged as optional
-    ///     // This will be set to Vec::default() when not specified
-    ///     #[attribute(optional)]
-    ///     views: Vec<Type>,
-    ///     // Booleans can be used without assiging a value. as a flag.
-    ///     // If omitted they are set to false
-    ///     some_flag: bool,
-    /// }
-    /// ```
-    ///
-    /// Will be able to parse an attribute like this:
+    /// It can therefore parse fields set over multiple attributes like:
     /// ```text
-    /// #[collection(authority="Some String", name = r#"Another string"#, views = [Option, ()], some_flag)]
+    /// #[collection(authority = "Authority", name = "Name")]
+    /// #[collection(views = [A, B])]
     /// ```
-    pub trait FromAttr: Sized + AttributeBase {
-        /// Parses an [`IntoIterator`] of [`syn::Attributes`](syn::Attribute)
-        /// e.g. [`Vec<Attribute>`](Vec). Only available if you specify
-        /// the attribute ident: `#[attribute(ident="<ident>")]` when
-        /// using the derive macro.
-        ///
-        /// It can therefore parse fields set over multiple attributes like:
-        /// ```text
-        /// #[collection(authority = "Authority", name = "Name")]
-        /// #[collection(views = [A, B])]
-        /// ```
-        /// And also catch duplicate/conflicting settings over those.
-        ///
-        /// This is best used for derive macros, where you don't need to remove
-        /// your attributes.
-        ///
-        /// # Errors
-        /// Fails with a [`syn::Error`] so you can conveniently return that as a
-        /// compiler error in a proc macro in the following cases
-        ///
-        /// - A required parameter is omitted
-        /// - Invalid input is given for a parameter
-        /// - A non aggregating parameter is specified multiple times
-        /// - An attribute called [`IDENTS`](const@AttributeIdent::IDENTS) has
-        ///   invalid syntax (e.g. `#attr(a: "a")`)
-        fn from_attributes<A: Borrow<syn::Attribute>>(
-            attrs: impl IntoIterator<Item = A>,
-        ) -> Result<Self>
-        where
-            Self: AttributeIdent,
-        {
-            attrs
-                .into_iter()
-                .filter(|attr| Self::is_ident(attr.borrow().path()))
-                .map(Self::from_attribute_partial)
-                .try_fold(None, |acc, item| {
-                    Self::join(
-                        acc,
-                        SpannedValue::call_site(item?),
-                        &format!("`{}` was specified twice", Self::ident()),
-                    )
-                })
-                .and_then(|o| {
-                    Self::from_option(
-                        o.map(SpannedValue::value),
-                        &format!("`{}` is not set", Self::ident()),
-                    )
-                })
-        }
-
-        /// Parses a [`&mut Vec<syn::Attributes>`](syn::Attribute). Removing
-        /// matching attributes. Only available if you specify an ident:
-        /// `#[attribute(ident="<ident>")]` when using the derive macro.
-        ///
-        /// It can therefore parse fields set over multiple attributes like:
-        /// ```text
-        /// #[collection(authority = "Authority", name = "Name")]
-        /// #[collection(views = [A, B])]
-        /// ```
-        /// And also catch duplicate/conflicting settings over those.
-        ///
-        /// Use this if you are implementing an attribute macro, and need to
-        /// remove your helper attributes.
-        ///
-        /// ```
-        /// use syn::parse_quote;
-        /// use attribute_derive::FromAttr;
-        /// let mut attrs = vec![
-        ///     parse_quote!(#[ignored]), parse_quote!(#[test]),
-        ///     parse_quote!(#[also_ignored]), parse_quote!(#[test])
-        /// ];
-        /// #[derive(FromAttr)]
-        /// #[attribute(ident = test)]
-        /// struct Test {}
-        /// assert!(Test::remove_attributes(&mut attrs).is_ok());
-        ///
-        /// assert_eq!(attrs, vec![parse_quote!(#[ignored]), parse_quote!(#[also_ignored])]);
-        /// ```
-        ///
-        /// # Errors
-        /// Fails with a [`syn::Error`], so you can conveniently return that as
-        /// a compiler error in a proc macro in the following cases
-        ///
-        /// - A necessary parameter is omitted
-        /// - Invalid input is given for a parameter
-        /// - A non aggregating parameter is specified multiple times
-        /// - An attribute called [`IDENTS`](const@AttributeIdent::IDENTS) has
-        ///   invalid syntax (e.g. `#attr(a: "a")`)
-        fn remove_attributes(attrs: &mut Vec<syn::Attribute>) -> Result<Self>
-        where
-            Self: AttributeIdent,
-        {
-            let mut i = 0;
-            Self::from_attributes(iter::from_fn(|| {
-                while i < attrs.len() {
-                    if Self::is_ident(attrs[i].path()) {
-                        return Some(attrs.remove(i));
-                    }
-                    i += 1;
-                }
-                None
-            }))
-        }
-
-        /// Parses from a single attribute. Ignoring the name.
-        ///  
-        /// This is available even without `#[attribute(ident = ...)]`, because
-        /// it ignores the attribute's path, allowing to use it to parse e.g.
-        /// literals:
-        /// ```
-        /// use attribute_derive::FromAttr;
-        ///
-        /// let attr: syn::Attribute = syn::parse_quote!(#[test = "hello"]);
-        /// assert_eq!(String::from_attribute(attr).unwrap(), "hello");
-        ///
-        /// let attr: syn::Attribute = syn::parse_quote!(#[test]);
-        /// assert_eq!(bool::from_attribute(attr).unwrap(), true);
-        /// ```
-        fn from_attribute(attr: impl Borrow<syn::Attribute>) -> Result<Self> {
-            Self::from_attribute_partial(attr).and_then(Self::from)
-        }
-
-        #[doc(hidden)]
-        #[deprecated = "use `from_input` instead"]
-        fn from_args(tokens: TokenStream) -> Result<Self> {
-            Self::from_input(tokens)
-        }
-
-        /// Parses a [`TokenStream`](proc_macro2::TokenStream).
-        ///
-        /// Useful for implementing general proc macros to parse the input of
-        /// your macro.
-        ///
-        /// This is a convenience over [`parse_input`](Self::parse_input). More
-        /// details are documented there.
-        fn from_input(input: impl Into<TokenStream>) -> Result<Self> {
-            Self::parse_input.parse2(input.into())
-        }
-
-        /// Parses input as the complete attribute.
-        ///
-        /// Due to this only parsing the input for a single attribute it is not
-        /// able to aggregate input spread over multiple attributes.
-        ///
-        /// # Errors
-        /// Fails with a [`syn::Error`], so you can conveniently return that as
-        /// a compiler error in a proc macro in the following cases
-        ///
-        /// - A necessary parameter is omitted
-        /// - Invalid input is given for a parameter
-        /// - A non aggregating parameter is specified multiple times
-        fn parse_input(input: ParseStream) -> Result<Self> {
-            Self::parse_partial(input).and_then(Self::from)
-        }
-
-        /// Like [`parse_partial`](Self::parse_partial) but instead takes an
-        /// [`Attribute`](syn::Attribute).
-        ///
-        /// This allows it to support all three, `#[flag]`, `#[function(like)]`
-        /// and `#[name = value]` attributes.
-        fn from_attribute_partial(attr: impl Borrow<syn::Attribute>) -> Result<Self::Partial> {
-            let tokens = match attr.borrow().meta {
-                Meta::Path(_) => TokenStream::new(),
-                Meta::List(ref list) => list.tokens.clone(),
-                Meta::NameValue(ref nv) => nv.value.to_token_stream(),
-            };
-            Self::parse_partial.parse2(tokens)
-        }
-
-        /// Actual implementation for parsing the attribute. This is the only
-        /// function required to implement in this trait and derived by the
-        /// [`FromAttr`](macro@FromAttr) derive macro.
-        fn parse_partial(input: ParseStream) -> Result<Self::Partial>;
+    /// And also catch duplicate/conflicting settings over those.
+    ///
+    /// This is best used for derive macros, where you don't need to remove
+    /// your attributes.
+    ///
+    /// # Errors
+    /// Fails with a [`syn::Error`] so you can conveniently return that as a
+    /// compiler error in a proc macro in the following cases
+    ///
+    /// - A required parameter is omitted
+    /// - Invalid input is given for a parameter
+    /// - A non aggregating parameter is specified multiple times
+    /// - An attribute called [`IDENTS`](const@AttributeIdent::IDENTS) has
+    ///   invalid syntax (e.g. `#attr(a: "a")`)
+    fn from_attributes<A: Borrow<syn::Attribute>>(
+        attrs: impl IntoIterator<Item = A>,
+    ) -> Result<Self>
+    where
+        Self: AttributeIdent,
+    {
+        attrs
+            .into_iter()
+            .filter(|attr| Self::is_ident(attr.borrow().path()))
+            .map(Self::from_attribute_partial)
+            .try_fold(None, |acc, item| {
+                Self::join(
+                    acc,
+                    SpannedValue::call_site(item?),
+                    &format!("`{}` was specified twice", Self::ident()),
+                )
+            })
+            .and_then(|o| {
+                Self::from_option(
+                    o.map(SpannedValue::value),
+                    &format!("`{}` is not set", Self::ident()),
+                )
+            })
     }
+
+    /// Parses a [`&mut Vec<syn::Attributes>`](syn::Attribute). Removing
+    /// matching attributes. Only available if you specify an ident:
+    /// `#[attribute(ident="<ident>")]` when using the derive macro.
+    ///
+    /// It can therefore parse fields set over multiple attributes like:
+    /// ```text
+    /// #[collection(authority = "Authority", name = "Name")]
+    /// #[collection(views = [A, B])]
+    /// ```
+    /// And also catch duplicate/conflicting settings over those.
+    ///
+    /// Use this if you are implementing an attribute macro, and need to
+    /// remove your helper attributes.
+    ///
+    /// ```
+    /// use syn::parse_quote;
+    /// use attribute_derive::FromAttr;
+    /// let mut attrs = vec![
+    ///     parse_quote!(#[ignored]), parse_quote!(#[test]),
+    ///     parse_quote!(#[also_ignored]), parse_quote!(#[test])
+    /// ];
+    /// #[derive(FromAttr)]
+    /// #[attribute(ident = test)]
+    /// struct Test {}
+    /// assert!(Test::remove_attributes(&mut attrs).is_ok());
+    ///
+    /// assert_eq!(attrs, vec![parse_quote!(#[ignored]), parse_quote!(#[also_ignored])]);
+    /// ```
+    ///
+    /// # Errors
+    /// Fails with a [`syn::Error`], so you can conveniently return that as
+    /// a compiler error in a proc macro in the following cases
+    ///
+    /// - A necessary parameter is omitted
+    /// - Invalid input is given for a parameter
+    /// - A non aggregating parameter is specified multiple times
+    /// - An attribute called [`IDENTS`](const@AttributeIdent::IDENTS) has
+    ///   invalid syntax (e.g. `#attr(a: "a")`)
+    fn remove_attributes(attrs: &mut Vec<syn::Attribute>) -> Result<Self>
+    where
+        Self: AttributeIdent,
+    {
+        let mut i = 0;
+        Self::from_attributes(iter::from_fn(|| {
+            while i < attrs.len() {
+                if Self::is_ident(attrs[i].path()) {
+                    return Some(attrs.remove(i));
+                }
+                i += 1;
+            }
+            None
+        }))
+    }
+
+    /// Parses from a single attribute. Ignoring the name.
+    ///  
+    /// This is available even without `#[attribute(ident = ...)]`, because
+    /// it ignores the attribute's path, allowing to use it to parse e.g.
+    /// literals:
+    /// ```
+    /// use attribute_derive::FromAttr;
+    ///
+    /// let attr: syn::Attribute = syn::parse_quote!(#[test = "hello"]);
+    /// assert_eq!(String::from_attribute(attr).unwrap(), "hello");
+    ///
+    /// let attr: syn::Attribute = syn::parse_quote!(#[test]);
+    /// assert_eq!(bool::from_attribute(attr).unwrap(), true);
+    /// ```
+    fn from_attribute(attr: impl Borrow<syn::Attribute>) -> Result<Self> {
+        Self::from_attribute_partial(attr).and_then(Self::from)
+    }
+
+    #[doc(hidden)]
+    #[deprecated = "use `from_input` instead"]
+    fn from_args(tokens: TokenStream) -> Result<Self> {
+        Self::from_input(tokens)
+    }
+
+    /// Parses a [`TokenStream`](proc_macro2::TokenStream).
+    ///
+    /// Useful for implementing general proc macros to parse the input of
+    /// your macro.
+    ///
+    /// This is a convenience over [`parse_input`](Self::parse_input). More
+    /// details are documented there.
+    fn from_input(input: impl Into<TokenStream>) -> Result<Self> {
+        Self::parse_input.parse2(input.into())
+    }
+
+    /// Parses input as the complete attribute.
+    ///
+    /// Due to this only parsing the input for a single attribute it is not
+    /// able to aggregate input spread over multiple attributes.
+    ///
+    /// # Errors
+    /// Fails with a [`syn::Error`], so you can conveniently return that as
+    /// a compiler error in a proc macro in the following cases
+    ///
+    /// - A necessary parameter is omitted
+    /// - Invalid input is given for a parameter
+    /// - A non aggregating parameter is specified multiple times
+    fn parse_input(input: ParseStream) -> Result<Self> {
+        Self::parse_partial(input).and_then(Self::from)
+    }
+
+    /// Like [`parse_partial`](Self::parse_partial) but instead takes an
+    /// [`Attribute`](syn::Attribute).
+    ///
+    /// This allows it to support all three, `#[flag]`, `#[function(like)]`
+    /// and `#[name = value]` attributes.
+    fn from_attribute_partial(attr: impl Borrow<syn::Attribute>) -> Result<Self::Partial> {
+        let tokens = match attr.borrow().meta {
+            Meta::Path(_) => TokenStream::new(),
+            Meta::List(ref list) => list.tokens.clone(),
+            Meta::NameValue(ref nv) => nv.value.to_token_stream(),
+        };
+        Self::parse_partial.parse2(tokens)
+    }
+
+    /// Actual implementation for parsing the attribute. This is the only
+    /// function required to implement in this trait and derived by the
+    /// [`FromAttr`](macro@FromAttr) derive macro.
+    fn parse_partial(input: ParseStream) -> Result<Self::Partial>;
 }
 
 /// Helper trait providing the path for an attribute.
