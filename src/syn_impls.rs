@@ -26,17 +26,17 @@ use crate::*;
 #[macro_export]
 macro_rules! impl_Attribute_for_Parse_and_ToTokens {
     ($($type:ty),+ $(,)?) => {$(
-        impl AttributeBase for $type {
+        impl $crate::parsing::AttributeBase for $type {
             type Partial = Self;
         }
 
-        impl AttributeValue for $type {
-            fn parse_value(input: syn::parse::ParseStream) -> Result<SpannedValue<Self::Partial>> {
-                input.parse().map(SpannedValue::from_to_tokens)
+        impl $crate::parsing::AttributeValue for $type {
+            fn parse_value(input: $crate::__private::syn::parse::ParseStream) -> $crate::Result<$crate::parsing::SpannedValue<Self::Partial>> {
+                input.parse().map($crate::parsing::SpannedValue::from_to_tokens)
             }
         }
 
-        impl PositionalValue for $type {}
+        impl $crate::parsing::PositionalValue for $type {}
 
     )*}
 }
