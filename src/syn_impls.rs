@@ -23,7 +23,8 @@ use crate::*;
 
 /// Macro to easily implement [`AttributeValue`] for types implementing
 /// [`Parse`] and [`ToTokens`].
-macro_rules! ParseToTokensAttribute {
+#[macro_export]
+macro_rules! impl_Attribute_for_Parse_and_ToTokens {
     ($($type:ty),+ $(,)?) => {$(
         impl AttributeBase for $type {
             type Partial = Self;
@@ -100,12 +101,12 @@ impl AttributeMeta for TokenStream {
 //     };
 // }
 
-ParseToTokensAttribute!(Type);
-ParseToTokensAttribute!(Path);
-ParseToTokensAttribute!(Lit);
-ParseToTokensAttribute![LitStr, LitByteStr, LitChar, LitInt, LitFloat, LitBool];
-ParseToTokensAttribute!(Expr);
-ParseToTokensAttribute![TokenTree, Group, Punct, Literal];
+impl_Attribute_for_Parse_and_ToTokens!(Type);
+impl_Attribute_for_Parse_and_ToTokens!(Path);
+impl_Attribute_for_Parse_and_ToTokens!(Lit);
+impl_Attribute_for_Parse_and_ToTokens![LitStr, LitByteStr, LitChar, LitInt, LitFloat, LitBool];
+impl_Attribute_for_Parse_and_ToTokens!(Expr);
+impl_Attribute_for_Parse_and_ToTokens![TokenTree, Group, Punct, Literal];
 
 // // TODO make this warning better visable
 // ParseToTokensAttribute! {
@@ -118,7 +119,7 @@ ParseToTokensAttribute![TokenTree, Group, Punct, Literal];
 // }
 
 // Some probably useless stuff
-ParseToTokensAttribute![
+impl_Attribute_for_Parse_and_ToTokens![
     Abi,
     Abstract,
     Plus,
@@ -283,7 +284,7 @@ mod syn_full {
 
     use super::*;
 
-    ParseToTokensAttribute![
+    impl_Attribute_for_Parse_and_ToTokens![
         Arm,
         Block,
         ExprArray,
