@@ -31,7 +31,7 @@ macro_rules! impl_Attribute_for_Parse_and_ToTokens {
         }
 
         impl $crate::parsing::AttributeValue for $type {
-            fn parse_value(input: $crate::__private::syn::parse::ParseStream) -> $crate::Result<$crate::parsing::SpannedValue<Self::Partial>> {
+            fn parse_value(input: $crate::__private::syn::parse::ParseStream) -> $crate::__private::syn::Result<$crate::parsing::SpannedValue<Self::Partial>> {
                 input.parse().map($crate::parsing::SpannedValue::from_to_tokens)
             }
         }
