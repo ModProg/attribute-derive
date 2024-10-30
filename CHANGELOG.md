@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Removed
+- **Breaking Change** remove the `Attribute` trait & derive-macro deprecated in [0.8.0](#080---2023-09-18)
 
 ## [0.10.1] - 2024-08-27
 ### Fixed
