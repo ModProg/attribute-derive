@@ -14,7 +14,7 @@ use quote_use::quote_use as quote;
 use syn::spanned::Spanned;
 use syn::{DataStruct, DeriveInput, Field, Fields, Generics, Ident, LitStr, Type, Visibility};
 
-const ATTRIBUTE_IDENT: &str = "attribute";
+const ATTRIBUTE_IDENTS: &[&str] = &["from_attr", "attribute", "attr"];
 
 #[allow(clippy::large_enum_variant)]
 enum StructError {
@@ -184,7 +184,7 @@ impl StructAttrs {
         // let mut duplicate: DuplicateStrategy = DuplicateStrategy::AggregateOrError;
         for attr in attrs
             .into_iter()
-            .filter(|attr| attr.path().is_ident(ATTRIBUTE_IDENT))
+            .filter(|attr| ATTRIBUTE_IDENTS.iter().any(|a| attr.path().is_ident(a)))
         {
             let parser = &mut attr
                 .meta
@@ -370,7 +370,7 @@ impl FieldAttrs {
 
         for attr in attrs
             .into_iter()
-            .filter(|attr| attr.path().is_ident(ATTRIBUTE_IDENT))
+            .filter(|attr| ATTRIBUTE_IDENTS.iter().any(|a| attr.path().is_ident(a)))
         {
             let mut parser = attr
                 .meta

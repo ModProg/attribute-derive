@@ -3,19 +3,19 @@
 //! ```
 //! use attribute_derive::FromAttr;
 //! #[derive(FromAttr)]
-//! #[attribute(ident = attr_name)]
+//! #[from_attr(ident = attr_name)]
 //! // overriding the builtin error messages
-//! #[attribute(error(missing_field = "`{field}` was not specified"))]
+//! #[from_attr(error(missing_field = "`{field}` was not specified"))]
 //! struct MyAttribute {
 //!     // Positional values need to be specified before any named ones
-//!     #[attribute(positional)]
+//!     #[from_attr(positional)]
 //!     positional: u8,
 //!     // Options are optional by default (will be set to None if not specified)
 //!     optional: Option<String>,
 //!     required: String,
 //!     // Any type implementing default can be flagged as default
 //!     // This will be set to Vec::default() when not specified
-//!     #[attribute(optional)]
+//!     #[from_attr(optional)]
 //!     list: Vec<syn::Type>,
 //!     // Booleans can be used without assigning a value, i.e., as a flag.
 //!     // If omitted they are set to false
