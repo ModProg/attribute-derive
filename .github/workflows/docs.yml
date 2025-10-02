@@ -37,8 +37,8 @@ jobs:
       - name: Generate Docs (reference docs.rs)
         run:  |
           cargo rustdoc -- --cfg docsrs -Z unstable-options $(cargo metadata --format-version 1 | jq --raw-output '.packages | map("--extern-html-root-url=\(.name)=https://docs.rs/\(.name)/\(.version)") | join(" ")')
-      - uses: actions/upload-pages-artifact@v1
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: 'target/doc'
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v1
