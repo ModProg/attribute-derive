@@ -460,7 +460,12 @@ impl Conflicts {
     }
 
     fn to_tokens(&self, struct_error: &StructError) -> Result<TokenStream> {
-        self.0
+        let mut conflicts = self.0.iter().collect::<Vec<_>>();
+
+        // The order must be deterministic to be friendly to tools like sccache
+        conflicts.sort();
+
+        conflicts
             .iter()
             .map(|(a, b)| {
                 let af = Formattable::display(&a);
