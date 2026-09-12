@@ -17,7 +17,6 @@ edition = "2021"
 [lib]
 
 [dependencies]
-derive-where = "1.2.7"
 manyhow = "0.14.0"
 proc-macro2 = "1"
 quote = "1"
