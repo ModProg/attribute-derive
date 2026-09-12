@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![allow(clippy::test_attr_in_doctest)]
 //! Basically clap for attribute macros:
 //! ```
 //! use attribute_derive::FromAttr;

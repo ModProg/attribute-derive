@@ -1,4 +1,4 @@
-#![allow(deprecated)]
+#![allow(deprecated, unused)]
 use attribute_derive::Attribute;
 use syn::parse_quote;
 
@@ -7,7 +7,7 @@ use syn::parse_quote;
 fn test() {
     use proc_macro2::TokenStream;
     use quote::quote;
-    use syn::{parse2, Expr, LitStr, Type};
+    use syn::{Expr, LitStr, Type, parse2};
 
     #[derive(Attribute)]
     #[attribute(ident = test)]

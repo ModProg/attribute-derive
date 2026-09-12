@@ -5,11 +5,11 @@ use std::iter;
 use std::ops::Range;
 
 use collection_literals::hash;
-use interpolator::{format, Formattable};
-use manyhow::{bail, error_message, manyhow, span_range, ErrorMessage, Result};
-use proc_macro2::{Literal, Span, TokenStream};
+use interpolator::{Formattable, format};
+use manyhow::{ErrorMessage, Result, bail, error_message, manyhow, span_range};
 use proc_macro_utils::{TokenParser, TokenStream2Ext};
-use quote::{format_ident, ToTokens};
+use proc_macro2::{Literal, Span, TokenStream};
+use quote::{ToTokens, format_ident};
 use quote_use::quote_use as quote;
 use syn::spanned::Spanned;
 use syn::{DataStruct, DeriveInput, Field, Fields, Generics, Ident, LitStr, Type, Visibility};
@@ -181,7 +181,8 @@ impl StructAttrs {
         let mut ident: Option<Ident> = None;
         let mut aliases: Vec<String> = vec![];
         let mut error = StructError::Specific(Default::default());
-        // let mut duplicate: DuplicateStrategy = DuplicateStrategy::AggregateOrError;
+        // let mut duplicate: DuplicateStrategy =
+        // DuplicateStrategy::AggregateOrError;
         for attr in attrs
             .into_iter()
             .filter(|attr| ATTRIBUTE_IDENTS.iter().any(|a| attr.path().is_ident(a)))
@@ -638,8 +639,8 @@ impl AttrField {
         self.help
             .as_ref()
             .map(|help| {
-                // Precision of `.0` hides the entries but surpresses error when not used in
-                // `help` string.
+                // Precision of `.0` hides the entries but surpresses error when
+                // not used in `help` string.
                 let fmt = format!("{{__error}}{help}{{open_or_eq:.0}}{{close_or_empty:.0}}");
                 let ty = quote!(<#ty as ::attribute_derive::parsing::AttributeNamed>);
                 quote! { .map_err(|__error| {
@@ -855,8 +856,8 @@ pub fn from_attr_derive(
         aliases.insert(0, attribute_ident.to_string());
     }
 
-    let attribute_ident_trait = (!aliases.is_empty())
-        .then(|| {
+    let attribute_ident_trait = if !aliases.is_empty() {
+        {
             quote! {
                 # use attribute_derive::AttributeIdent;
 
@@ -864,8 +865,10 @@ pub fn from_attr_derive(
                     const IDENTS: &'static [&'static str] = &[#(#aliases),*];
                 }
             }
-        })
-        .unwrap_or_default();
+        }
+    } else {
+        Default::default()
+    };
 
     let (fields, conflicts) = match data {
         syn::Data::Struct(DataStruct {

@@ -1,3 +1,4 @@
+#![allow(unused)]
 use attribute_derive::parsing::AttributeNamed;
 use attribute_derive::{FlagOrValue, FromAttr, AttributeIdent};
 use proc_macro2::TokenStream;

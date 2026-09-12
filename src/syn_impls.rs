@@ -9,13 +9,13 @@ use syn::token::{
     Trait, Try, Typeof, Underscore, Union, Unsafe, Unsized, Use, Virtual, Where, While, Yield,
 };
 use syn::{
-    Abi, AngleBracketedGenericArguments, BareFnArg, BinOp, BoundLifetimes, ConstParam, DeriveInput,
-    Expr, FieldsNamed, FieldsUnnamed, GenericArgument, GenericParam, Generics, Ident, Index,
-    Lifetime, Lit, LitBool, LitByteStr, LitChar, LitFloat, LitInt, LitStr, Member, Meta, MetaList,
-    MetaNameValue, ParenthesizedGenericArguments, Path, PathSegment, ReturnType, TraitBound,
-    TraitBoundModifier, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeInfer,
-    TypeMacro, TypeNever, TypeParam, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference,
-    TypeSlice, TypeTraitObject, TypeTuple, UnOp, Variant, Visibility, WhereClause, WherePredicate,
+    Abi, AngleBracketedGenericArguments, BinOp, BoundLifetimes, ConstParam, DeriveInput, Expr,
+    FieldsNamed, FieldsUnnamed, GenericArgument, GenericParam, Generics, Ident, Index, Lifetime,
+    Lit, LitBool, LitByteStr, LitChar, LitFloat, LitInt, LitStr, Member, Meta, MetaList,
+    MetaNameValue, ParenthesizedGenericArguments, Path, PathSegment, ReturnType, TraitBound, Type,
+    TypeArray, TypeFnPtr, TypeGroup, TypeImplTrait, TypeInfer, TypeMacro, TypeNever, TypeParam,
+    TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject,
+    TypeTuple, UnOp, Variant, Visibility, WhereClause, WherePredicate,
 };
 
 use crate::parsing::*;
@@ -134,7 +134,6 @@ impl_Attribute_for_Parse_and_ToTokens![
     Auto,
     Await,
     Not,
-    BareFnArg,
     Become,
     BinOp,
     BoundLifetimes,
@@ -227,10 +226,9 @@ impl_Attribute_for_Parse_and_ToTokens![
     Tilde,
     Trait,
     TraitBound,
-    TraitBoundModifier,
     Try,
     TypeArray,
-    TypeBareFn,
+    TypeFnPtr,
     TypeGroup,
     TypeImplTrait,
     TypeInfer,
@@ -281,8 +279,6 @@ mod syn_full {
         ItemTraitAlias, ItemType, ItemUnion, ItemUse, Label, RangeLimits, Receiver, Signature,
         Stmt, TraitItem, TraitItemConst, TraitItemMacro, TraitItemType, UseTree,
     };
-
-    use super::*;
 
     impl_Attribute_for_Parse_and_ToTokens![
         Arm,

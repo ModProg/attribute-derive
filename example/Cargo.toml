@@ -9,7 +9,7 @@ proc-macro = true
 
 [dependencies]
 attribute-derive = { path = "..", features = ["syn-full"] }
-syn = { version = "2", features = ["full", "extra-traits"] }
+syn = { version = "3", features = ["full", "extra-traits"] }
 trybuild = "1"
 
 [dev-dependencies]
