@@ -3,8 +3,8 @@ name: Test
 on:
   push: null
   pull_request: null
-  schedule: 
-    - cron: '0 12 * * *'
+  # schedule: 
+  #   - cron: '0 12 * * *'
 
 jobs:
   test:
