@@ -36,9 +36,9 @@ jobs:
       - uses: hecrj/setup-rust-action@v1
         with:
           rust-version: ${{ matrix.rust }}
-      - uses: bruxisma/setup-cargo-hack@v1
+      - uses: baptiste0928/cargo-install@v3
         with:
-          cargo-hack-version: "0.5"
+          crate: cargo-hack
       - name: Build
         run: cargo hack build --feature-powerset ${{ matrix.cargo_flags }}
       - name: Test
