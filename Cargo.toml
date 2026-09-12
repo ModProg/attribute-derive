@@ -10,7 +10,7 @@ keywords = ["derive", "macro", "attribute", "arguments", "syn"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/ModProg/attribute-derive"
 name = "attribute-derive"
-version = "0.10.5"
+version = "0.11.0"
 edition = "2021"
 
 [lib]
@@ -26,7 +26,7 @@ syn = "3"
 syn-full = ["syn/full"]
 
 [dependencies.attribute-derive-macro]
-version = "0.10.5"
+version = "0.11.0"
 path = "macro"
 
 [dev-dependencies]
