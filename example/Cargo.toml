@@ -13,6 +13,7 @@ syn = { version = "3", features = ["full", "extra-traits"] }
 
 [dev-dependencies]
 rustversion = "1.0.17"
+trybuild  = "1.0.121"
 
 [package.metadata.release]
 release = false
