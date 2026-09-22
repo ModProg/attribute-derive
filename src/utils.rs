@@ -23,20 +23,20 @@ use crate::{SpannedValue, *};
 /// }
 ///
 /// assert_eq!(
-///     Test::from_args(quote!(param)).unwrap().param,
+///     Test::from_input(quote!(param)).unwrap().param,
 ///     FlagOrValue::Flag
 /// );
 /// assert_eq!(
-///     Test::from_args(quote!(param = "value")).unwrap().param,
+///     Test::from_input(quote!(param = "value")).unwrap().param,
 ///     FlagOrValue::Value("value".into())
 /// );
 /// assert_eq!(
-///     Test::from_args(quote!(param, param = "value", param))
+///     Test::from_input(quote!(param, param = "value", param))
 ///         .unwrap()
 ///         .param,
 ///     FlagOrValue::Value("value".into())
 /// );
-/// assert_eq!(Test::from_args(quote!()).unwrap().param, FlagOrValue::None);
+/// assert_eq!(Test::from_input(quote!()).unwrap().param, FlagOrValue::None);
 /// ```
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FlagOrValue<T> {

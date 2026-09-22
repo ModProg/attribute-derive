@@ -54,6 +54,6 @@ attributes for proc macros, where the helper attributes need to be removed.
 
 For parsing a single [`TokenStream`](https://docs.rs/proc-macro2/latest/proc_macro2/struct.TokenStream.html) e.g. for parsing the proc macro input there a two ways:
 
-- [`FromAttr::from_args`](https://docs.rs/attribute-derive/latest/attribute_derive/trait.FromAttr.html#tymethod.from_args) taking in a [`TokenStream`](https://docs.rs/proc-macro2/latest/proc_macro2/struct.TokenStream.html)
+- [`FromAttr::from_input`](https://docs.rs/attribute-derive/latest/attribute_derive/trait.FromAttr.html#tymethod.from_input) taking in a [`TokenStream`](https://docs.rs/proc-macro2/latest/proc_macro2/struct.TokenStream.html)
 - As `derive(FromAttr)` also derives [`Parse`](https://docs.rs/syn/latest/syn/parse/trait.Parse.html) so you can use the [parse](https://docs.rs/syn/latest/syn/parse/index.html) API,
 e.g. with [`parse_macro_input!(tokens as Attribute)`](https://docs.rs/syn/latest/syn/macro.parse_macro_input.html).

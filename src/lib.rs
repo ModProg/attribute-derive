@@ -53,7 +53,7 @@
 //! use syn::{Attribute, parse_quote};
 //! use attribute_derive::FromAttr;
 //!
-//! #[derive(FromAttr, PartialEq, Debug)]    
+//! #[derive(FromAttr, PartialEq, Debug)]
 //! #[attribute(ident = flag)]
 //! struct Flag(bool);
 //!
@@ -138,7 +138,7 @@
 //! For parsing a single [`TokenStream`] e.g. for parsing the proc macro input
 //! there are two ways:
 //!
-//! - [`FromAttr::from_args`] taking in a [`TokenStream`]
+//! - [`FromAttr::from_input`] taking in a [`TokenStream`]
 //! - As `derive(FromAttr)` also derives [`Parse`] so you can use the
 //!   [parse](mod@syn::parse) API, e.g. with [`parse_macro_input!(tokens as
 //!   Attribute)`](syn::parse_macro_input!).
@@ -318,7 +318,7 @@ mod tmp {
         }
 
         /// Parses from a single attribute. Ignoring the name.
-        ///  
+        ///
         /// This is available even without `#[attribute(ident = ...)]`, because
         /// it ignores the attribute's path, allowing to use it to parse e.g.
         /// literals:
